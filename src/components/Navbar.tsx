@@ -4,7 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ArrowUpRight, ChevronDown, LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
-
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { prefetchApiData } from '@/lib/api';
+import { SalonImage } from './SalonImage';
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -97,12 +100,32 @@ export function Navbar() {
             Home
             {navUnderline('/')}
           </Link>
-          <Link href="/services" className={navLinkClass('/services')}>
+          <Link
+            href="/services"
+            onMouseEnter={() => prefetchApiData('/api/services')}
+            onFocus={() => prefetchApiData('/api/services')}
+            className={navLinkClass('/services')}
+          >
             Browse Services
             {navUnderline('/services')}
           </Link>
           {user && (
-            <Link href={dashboardPath} className={navLinkClass('/dashboard')}>
+            <Link
+              href={dashboardPath}
+              onMouseEnter={() =>
+                prefetchApiData(
+                  user.role === 'admin' ? '/api/admin/overview' : '/api/appointments/my',
+                  15000
+                )
+              }
+              onFocus={() =>
+                prefetchApiData(
+                  user.role === 'admin' ? '/api/admin/overview' : '/api/appointments/my',
+                  15000
+                )
+              }
+              className={navLinkClass('/dashboard')}
+            >
               Dashboard
               {navUnderline('/dashboard')}
             </Link>

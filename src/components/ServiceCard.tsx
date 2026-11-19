@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import { primeApiCache } from '@/lib/api';
 import { formatCurrency, formatDuration, type ServiceRecord } from '@/lib/salonRules';
 import { SalonImage } from './SalonImage';
 
@@ -10,10 +13,16 @@ export function ServiceCard({
   service: ServiceRecord;
   priority?: boolean;
 }) {
+  const handleWarmDetail = () => {
+    primeApiCache(`/api/services/${encodeURIComponent(service.id)}`, { service });
+  };
+
   return (
     <article className="group flex flex-col bg-[#FFFFFF] border border-[#E5DDD0] hover:border-[#B5893A]/60 rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#231A16]/[0.05]">
       <Link
         href={`/services/${service.id}`}
+        onMouseEnter={handleWarmDetail}
+        onFocus={handleWarmDetail}
         aria-label={`View details for ${service.serviceName}`}
         className="flex flex-col flex-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B5893A]"
       >

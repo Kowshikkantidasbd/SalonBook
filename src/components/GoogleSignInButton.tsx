@@ -1,120 +1,104 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import type { PublicUser } from '@/lib/salonRules';
 
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: { credential?: string }) => void;
-          }) => void;
-          renderButton: (
-            element: HTMLElement,
-            options: {
-              theme?: string;
-              size?: string;
-              width?: number;
-              text?: string;
-              shape?: string;
-            }
-          ) => void;
-        };
-      };
-    };
-  }
-}
+const BUTTON_LABELS: Record<'signin_with' | 'signup_with' | 'continue_with', string> = {
+  signin_with: 'Sign in with Google',
+  signup_with: 'Sign up with Google',
+  continue_with: 'Continue with Google',
+};
 
 export function GoogleSignInButton({
   label = 'signin_with',
+  callbackURL = '/dashboard',
   onSuccess,
   onError,
 }: {
   label?: 'signin_with' | 'signup_with' | 'continue_with';
-  onSuccess: (user: PublicUser) => void;
+  callbackURL?: string;
+  onSuccess?: (user: PublicUser) => void;
   onError: (message: string) => void;
 }) {
-  const { googleLogin } = useAuth();
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { signInWithGoogle } = useAuth();
+  const [loading, setLoading] = useState(false);
 
-  const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim();
-  const isConfigured = Boolean(clientId) && clientId !== 'MY_GOOGLE_CLIENT_ID';
+  const buttonText = BUTTON_LABELS[label] || 'Sign in with Google';
 
-  useEffect(() => {
-    if (!isConfigured || !containerRef.current) return;
-
-    let cancelled = false;
-    const renderGsi = () => {
-      if (cancelled || !containerRef.current || !window.google?.accounts?.id) return;
-      containerRef.current.innerHTML = '';
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response) => {
-          if (!response?.credential) {
-            onError('Google sign-in did not return a verified credential.');
-            return;
-          }
-          try {
-            const user = await googleLogin({ credential: response.credential });
-            onSuccess(user);
-          } catch (err) {
-            onError(err instanceof Error ? err.message : 'Google sign-in failed.');
-          }
-        },
-      });
-      window.google.accounts.id.renderButton(containerRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: 360,
-        text: label,
-        shape: 'rectangular',
-      });
-    };
-
-    if (window.google?.accounts?.id) {
-      renderGsi();
-      return;
+  const handleGoogleSignIn = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const signedInUser = await signInWithGoogle(callbackURL);
+      if (signedInUser) {
+        onSuccess?.(signedInUser);
+      } else {
+        setLoading(false);
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Google sign-in failed. Please try again.';
+      onError(message);
+      setLoading(false);
     }
-
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src="https://accounts.google.com/gsi/client"]'
-    );
-    if (existingScript) {
-      existingScript.addEventListener('load', renderGsi);
-      return () => {
-        cancelled = true;
-        existingScript.removeEventListener('load', renderGsi);
-      };
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = renderGsi;
-    document.head.appendChild(script);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId, googleLogin, isConfigured, label, onError, onSuccess]);
-
-  if (!isConfigured) {
-    return null;
-  }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="my-5 flex items-center gap-3 text-xs text-[#6E6259]">
-        <div className="h-px flex-1 bg-[#E5DDD0]" />
-        <span>or</span>
-        <div className="h-px flex-1 bg-[#E5DDD0]" />
+    <div className="mt-6">
+      <div className="mb-4 flex items-center gap-3.5 text-xs text-[#8C7F72]">
+        <div className="h-px flex-1 bg-[#EAE2D5]" />
+        <span className="text-xs font-medium text-[#8C7F72] whitespace-nowrap">
+          or continue with
+        </span>
+        <div className="h-px flex-1 bg-[#EAE2D5]" />
       </div>
-      <div ref={containerRef} className="flex justify-center min-h-[40px]" />
+
+      <button
+        type="button"
+        onClick={handleGoogleSignIn}
+        disabled={loading}
+        aria-label={buttonText}
+        className="w-full inline-flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl bg-[#FFFFFF] hover:bg-[#FAF6EF] active:bg-[#F3EDE2] text-[#231A16] border border-[#DDD3C4] hover:border-[#B5893A]/75 shadow-[0_2px_10px_-4px_rgba(35,26,22,0.1)] hover:shadow-[0_8px_18px_-10px_rgba(35,26,22,0.2)] text-sm font-medium transition-all duration-150 hover:-translate-y-[1px] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B5893A]/40 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 cursor-pointer"
+      >
+        {loading ? (
+          <span
+            aria-hidden="true"
+            className="w-[18px] h-[18px] rounded-full border-2 border-[#E5DDD0] border-t-[#B5893A] animate-spin shrink-0"
+          />
+        ) : (
+          <svg
+            version="1.1"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 48 48"
+            className="w-[18px] h-[18px] shrink-0 block"
+            aria-hidden="true"
+          >
+            <path
+              fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+            />
+            <path
+              fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+            />
+            <path
+              fill="#34A853"
+              d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+            />
+            <path fill="none" d="M0 0h48v48H0z" />
+          </svg>
+        )}
+        <span className="whitespace-nowrap">
+          {loading ? 'Connecting with Google...' : buttonText}
+        </span>
+      </button>
     </div>
   );
 }
