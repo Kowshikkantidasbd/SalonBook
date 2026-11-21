@@ -84,7 +84,8 @@ export function SalonImage({
       width={800}
       height={600}
       sizes={sizes}
-      priority={priority}
+      preload={priority}
+      loading={priority ? 'eager' : undefined}
       unoptimized={!optimize}
       referrerPolicy="no-referrer"
       onError={() => setFailedSrc(resolvedSrc)}

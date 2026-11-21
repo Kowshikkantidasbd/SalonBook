@@ -38,28 +38,33 @@ export function AdminAppointmentsTab({
         <div className="p-10 text-center text-sm text-[#6E6259]">No appointments found.</div>
       ) : (
         <>
-          <div className="lg:hidden divide-y divide-[#E5DDD0]/70">
+          <div className="xl:hidden divide-y divide-[#E5DDD0]/70 md:divide-y-0 md:grid md:grid-cols-2 md:gap-4 md:p-5">
             {appointments.map((apt) => (
-              <div key={apt.id} className="p-4 sm:px-6 sm:py-5 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#231A16] truncate">
-                      {apt.service?.serviceName || apt.serviceName || 'Salon Service'}
-                    </p>
-                    <p className="text-xs text-[#6E6259] truncate mt-0.5">
-                      {apt.customer?.name || 'Guest'} · {apt.customer?.email || '—'}
-                    </p>
+              <div
+                key={apt.id}
+                className="p-4 sm:p-5 space-y-3 md:rounded-xl md:border md:border-[#E5DDD0] md:bg-[#FBF8F3]/45 flex flex-col justify-between"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#231A16] truncate">
+                        {apt.service?.serviceName || apt.serviceName || 'Salon Service'}
+                      </p>
+                      <p className="text-xs text-[#6E6259] truncate mt-0.5">
+                        {apt.customer?.name || 'Guest'} · {apt.customer?.email || '—'}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold text-[#231A16] tabular-nums shrink-0">
+                      {formatCurrency(apt.servicePrice)}
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-[#231A16] tabular-nums shrink-0">
-                    {formatCurrency(apt.servicePrice)}
-                  </span>
+
+                  <p className="text-xs font-medium text-[#231A16] tabular-nums">
+                    {apt.appointmentDate} · {apt.timeSlot}
+                  </p>
                 </div>
 
-                <p className="text-xs font-medium text-[#231A16] tabular-nums">
-                  {apt.appointmentDate} · {apt.timeSlot}
-                </p>
-
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-[#E5DDD0]/60">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <AppointmentStatusBadge status={apt.status} />
                     <PaymentStatusBadge status={apt.paymentStatus} />
@@ -98,22 +103,22 @@ export function AdminAppointmentsTab({
             ))}
           </div>
 
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden xl:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E5DDD0] bg-[#F3EDE2]/70 text-xs font-semibold text-[#6E6259]">
-                  <th className="py-3 pl-5 pr-3">Customer</th>
-                  <th className="py-3 px-3">Service</th>
-                  <th className="py-3 px-3">Date & Time</th>
-                  <th className="py-3 px-3">Price</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 pl-3 pr-5 text-right">Actions</th>
+                  <th className="py-3 pl-4 pr-2.5">Customer</th>
+                  <th className="py-3 px-2.5">Service</th>
+                  <th className="py-3 px-2.5 whitespace-nowrap">Date & Time</th>
+                  <th className="py-3 px-2.5">Price</th>
+                  <th className="py-3 px-2.5">Status</th>
+                  <th className="py-3 pl-2.5 pr-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5DDD0]/70 text-sm">
                 {appointments.map((apt) => (
                   <tr key={apt.id} className="hover:bg-[#F3EDE2]/35 transition-colors">
-                    <td className="py-3.5 pl-5 pr-3">
+                    <td className="py-3.5 pl-4 pr-2.5">
                       <p className="font-semibold text-[#231A16] max-w-[140px] truncate">
                         {apt.customer?.name || 'Guest'}
                       </p>
@@ -121,25 +126,25 @@ export function AdminAppointmentsTab({
                         {apt.customer?.email || '—'}
                       </p>
                     </td>
-                    <td className="py-3.5 px-3">
-                      <p className="font-medium text-[#231A16] max-w-[165px] truncate">
+                    <td className="py-3.5 px-2.5">
+                      <p className="font-medium text-[#231A16] max-w-[160px] truncate">
                         {apt.service?.serviceName || apt.serviceName || 'Salon Service'}
                       </p>
                     </td>
-                    <td className="py-3.5 px-3 whitespace-nowrap tabular-nums">
+                    <td className="py-3.5 px-2.5 whitespace-nowrap tabular-nums">
                       <p className="text-[#231A16]">{apt.appointmentDate}</p>
                       <p className="text-xs text-[#6E6259]">{apt.timeSlot}</p>
                     </td>
-                    <td className="py-3.5 px-3 font-semibold text-[#231A16] tabular-nums whitespace-nowrap">
+                    <td className="py-3.5 px-2.5 font-semibold text-[#231A16] tabular-nums whitespace-nowrap">
                       {formatCurrency(apt.servicePrice)}
                     </td>
-                    <td className="py-3.5 px-3">
+                    <td className="py-3.5 px-2.5">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <AppointmentStatusBadge status={apt.status} />
                         <PaymentStatusBadge status={apt.paymentStatus} />
                       </div>
                     </td>
-                    <td className="py-3.5 pl-3 pr-5 text-right">
+                    <td className="py-3.5 pl-2.5 pr-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1.5">
                         <button
                           type="button"

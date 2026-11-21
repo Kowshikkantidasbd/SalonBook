@@ -6,6 +6,7 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { apiFetchCached, getCachedApiData, primeApiCache } from '@/lib/api';
 import {
   filterAndSortServices,
+  normalizeServiceSort,
   SALON_CATEGORIES,
   type ServiceRecord,
 } from '@/lib/salonRules';
@@ -21,8 +22,7 @@ export function BrowseServicesClient({
   const router = useRouter();
   const initialCategory = searchParams.get('category') || 'All';
   const initialSearch = searchParams.get('search') || '';
-  const initialSort =
-    (searchParams.get('sort') as 'newest' | 'price_asc' | 'price_desc') || 'newest';
+  const initialSort = normalizeServiceSort(searchParams.get('sort'));
 
   const [search, setSearch] = useState(initialSearch);
   const [category, setCategory] = useState(initialCategory);
@@ -34,7 +34,15 @@ export function BrowseServicesClient({
 
   useEffect(() => {
     const paramCat = searchParams.get('category') || 'All';
+    const paramSearch = searchParams.get('search') || '';
+    const paramSort = normalizeServiceSort(searchParams.get('sort'));
     setCategory(paramCat);
+    if (searchParams.has('search')) {
+      setSearch(paramSearch);
+    }
+    if (searchParams.has('sort')) {
+      setSort(paramSort);
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -167,7 +175,7 @@ export function BrowseServicesClient({
           <div
             role="tablist"
             aria-label="Filter services by category"
-            className="flex items-center gap-1.5 pt-3 border-t border-[#F3EDE2] overflow-x-auto pb-1 sm:pb-0 sm:flex-wrap"
+            className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-3 border-t border-[#F3EDE2]"
           >
             {['All', ...SALON_CATEGORIES].map((cat) => {
               const active = category === cat;
@@ -231,9 +239,9 @@ export function BrowseServicesClient({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-7">
               {services.map((svc, idx) => (
-                <ServiceCard key={svc.id} service={svc} priority={idx < 3} />
+                <ServiceCard key={svc.id} service={svc} priority={idx < 6} />
               ))}
             </div>
           )}

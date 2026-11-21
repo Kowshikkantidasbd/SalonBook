@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Upload } from 'lucide-react';
 import { SalonImage } from '@/components/SalonImage';
-import { apiFetch, uploadImageFile } from '@/lib/api';
+import { SalonLoader } from '@/components/SalonLoader';
+import { adminApi, uploadApi } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import {
   SALON_CATEGORIES,
@@ -18,10 +19,12 @@ import {
 export function AdminServiceFormTab({
   editId,
   services,
+  loading = false,
   onSaved,
 }: {
   editId?: string;
   services: ServiceRecord[];
+  loading?: boolean;
   onSaved: () => Promise<void>;
 }) {
   const router = useRouter();
@@ -55,10 +58,11 @@ export function AdminServiceFormTab({
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setUploading(true);
     try {
-      const url = await uploadImageFile(file);
+      const url = await uploadApi.uploadImage(file);
       setImage(url);
       showToast('Service image uploaded.', 'success');
     } catch (err) {
@@ -96,19 +100,14 @@ export function AdminServiceFormTab({
         status,
       };
       if (editingService) {
-        await apiFetch(`/api/admin/services/${encodeURIComponent(editingService.id)}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
+        await adminApi.updateService(editingService.id, payload);
         showToast('Service updated successfully.', 'success');
       } else {
-        await apiFetch('/api/admin/services', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        await adminApi.createService(payload);
         showToast('New salon service created.', 'success');
       }
       await onSaved();
+      router.refresh();
       router.push('/dashboard/admin/services');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to save service.';
@@ -117,6 +116,31 @@ export function AdminServiceFormTab({
       setSaving(false);
     }
   };
+
+  if (editId && loading && !editingService) {
+    return (
+      <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-8 max-w-2xl shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+        <SalonLoader size="sm" label="Loading service details..." className="py-12" />
+      </div>
+    );
+  }
+
+  if (editId && !loading && !editingService) {
+    return (
+      <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-8 max-w-2xl text-center shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+        <h2 className="font-display text-2xl font-semibold text-[#231A16]">Service Not Found</h2>
+        <p className="mt-2 text-sm text-[#6E6259]">
+          The requested salon service could not be found or may have been deleted.
+        </p>
+        <Link
+          href="/dashboard/admin/services"
+          className="mt-5 inline-flex items-center px-4 py-2 text-xs font-semibold text-[#FBF8F3] bg-[#231A16] hover:bg-[#382B24] rounded-lg transition-colors"
+        >
+          Back to Manage Services
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-6 sm:p-8 max-w-2xl shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">

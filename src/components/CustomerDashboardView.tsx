@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Calendar, CreditCard, ExternalLink, Eye, LayoutDashboard, Receipt, User, X } from 'lucide-react';
+import { Calendar, CreditCard, ExternalLink, Eye, LayoutDashboard, Mail, Phone, Receipt, User, X } from 'lucide-react';
 import { DashboardLayout, type SidebarItem } from '@/components/DashboardLayout';
 import { ProfileSection } from '@/components/ProfileSection';
 import { SalonImage } from '@/components/SalonImage';
@@ -11,10 +11,10 @@ import { SalonLoader } from '@/components/SalonLoader';
 import { AppointmentStatusBadge, PaymentStatusBadge } from '@/components/StatusBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
-  apiFetch,
-  apiFetchRevalidate,
+  appointmentsApi,
   getCachedApiData,
   invalidateApiCache,
+  paymentsApi,
 } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -113,8 +113,19 @@ export function CustomerDashboardView({
     cancelledAppointments: appointments.filter((a) => a.status === 'cancelled').length,
   };
 
+  useEffect(() => {
+    if (!selectedApt) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedApt(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedApt]);
+
   const loadData = useCallback(
-    async (forceFresh = false) => {
+    async (forceFresh = false, silent = false) => {
       if (section === 'profile') {
         setLoading(false);
         return;
@@ -134,26 +145,28 @@ export function CustomerDashboardView({
           setTransactions(existingTxns.transactions);
           if (existingTxns.summary) setPaymentSummary(existingTxns.summary);
           setLoading(false);
-        } else {
+        } else if (!silent) {
           setLoading(true);
         }
 
         try {
-          const txnsRes = await apiFetchRevalidate<{
+          const txnsRes = await paymentsApi.getMyTransactions<{
             transactions: PopulatedCustomerTransaction[];
             summary?: CustomerPaymentSummary;
-          }>('/api/transactions/my');
+          }>();
           setTransactions(txnsRes.transactions || []);
           if (txnsRes.summary) {
             setPaymentSummary(txnsRes.summary);
           }
         } catch (err) {
-          if (!existingTxns) {
+          if (!existingTxns && !silent) {
             const msg = err instanceof Error ? err.message : 'Unable to load payment history.';
             showToast(msg, 'error');
           }
         } finally {
-          setLoading(false);
+          if (!silent) {
+            setLoading(false);
+          }
         }
         return;
       }
@@ -171,36 +184,36 @@ export function CustomerDashboardView({
       if (existing) {
         setAppointments(existing.appointments);
         setLoading(false);
-      } else {
+      } else if (!silent) {
         setLoading(true);
       }
 
       try {
-        const aptsRes = await apiFetchRevalidate<{ appointments: PopulatedCustomerAppointment[] }>(
-          '/api/appointments/my'
-        );
+        const aptsRes = await appointmentsApi.getMy<PopulatedCustomerAppointment>();
         setAppointments(aptsRes.appointments);
       } catch (err) {
-        if (!existing) {
+        if (!existing && !silent) {
           const msg = err instanceof Error ? err.message : 'Unable to load dashboard data.';
           showToast(msg, 'error');
         }
       } finally {
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
       }
     },
     [section, showToast]
   );
 
   useEffect(() => {
-    loadData(false);
+    loadData(false, false);
   }, [loadData]);
 
   useEffect(() => {
     if (section === 'profile') return;
     const handleRefresh = () => {
       if (document.visibilityState === 'visible') {
-        loadData(true);
+        void loadData(true, true);
       }
     };
     window.addEventListener('focus', handleRefresh);
@@ -212,18 +225,18 @@ export function CustomerDashboardView({
   }, [section, loadData]);
 
   const handleConfirmCancel = async () => {
-    if (!cancelTarget) return;
+    if (!cancelTarget || cancelling) return;
     setCancelling(true);
     try {
-      await apiFetch(`/api/appointments/${encodeURIComponent(cancelTarget.id)}/cancel`, {
-        method: 'PATCH',
-      });
+      await appointmentsApi.cancel(cancelTarget.id);
       showToast('Pending appointment request cancelled.', 'success');
       setCancelTarget(null);
-      await loadData(true);
+      await loadData(true, true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to cancel appointment.';
       showToast(msg, 'error');
+      setCancelTarget(null);
+      await loadData(true, true);
     } finally {
       setCancelling(false);
     }
@@ -232,13 +245,7 @@ export function CustomerDashboardView({
   const handlePayNow = async (aptId: string) => {
     setPayingId(aptId);
     try {
-      const res = await apiFetch<{ url: string; mode: string }>(
-        '/api/payments/create-checkout-session',
-        {
-          method: 'POST',
-          body: JSON.stringify({ appointmentId: aptId }),
-        }
-      );
+      const res = await paymentsApi.createCheckoutSession(aptId);
       invalidateApiCache('/api/appointments');
       invalidateApiCache('/api/admin');
       if (res.mode === 'stripe' && res.url.startsWith('http')) {
@@ -261,28 +268,28 @@ export function CustomerDashboardView({
     >
       {section === 'overview' && (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
               <p className="text-xs font-medium text-[#6E6259]">Total Appointment Requests</p>
-              <p className="mt-2 font-display text-3xl font-semibold text-[#231A16] tabular-nums">
+              <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#231A16] tabular-nums">
                 {loading ? '—' : stats?.totalRequests ?? 0}
               </p>
             </div>
-            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
               <p className="text-xs font-medium text-[#6E6259]">Pending Appointments</p>
-              <p className="mt-2 font-display text-3xl font-semibold text-[#9A7028] tabular-nums">
+              <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#9A7028] tabular-nums">
                 {loading ? '—' : stats?.pendingAppointments ?? 0}
               </p>
             </div>
-            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
               <p className="text-xs font-medium text-[#6E6259]">Confirmed Appointments</p>
-              <p className="mt-2 font-display text-3xl font-semibold text-[#1F6E43] tabular-nums">
+              <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#1F6E43] tabular-nums">
                 {loading ? '—' : stats?.confirmedAppointments ?? 0}
               </p>
             </div>
-            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+            <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
               <p className="text-xs font-medium text-[#6E6259]">Cancelled Appointments</p>
-              <p className="mt-2 font-display text-3xl font-semibold text-[#9F1239] tabular-nums">
+              <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#9F1239] tabular-nums">
                 {loading ? '—' : stats?.cancelledAppointments ?? 0}
               </p>
             </div>
@@ -400,45 +407,50 @@ export function CustomerDashboardView({
             </div>
           ) : (
             <>
-              <div className="lg:hidden divide-y divide-[#E5DDD0]/70">
+              <div className="xl:hidden divide-y divide-[#E5DDD0]/70 md:divide-y-0 md:grid md:grid-cols-2 md:gap-4 md:p-5">
                 {appointments.map((apt) => {
                   const canCancel = user ? canCustomerCancelAppointment(apt, user.id) : false;
                   const canPay = user ? canCustomerPayAppointment(apt, user.id) : false;
 
                   return (
-                    <div key={apt.id} className="p-4 sm:px-6 sm:py-5 space-y-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <SalonImage
-                            src={apt.service?.image || apt.serviceImage}
-                            alt={apt.service?.serviceName || apt.serviceName || 'Service'}
-                            sizes="48px"
-                            className="w-11 h-11 rounded-lg object-cover border border-[#E5DDD0] shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[#231A16] truncate">
-                              {apt.service?.serviceName || apt.serviceName || 'Salon Service'}
-                            </p>
-                            <p className="text-xs text-[#6E6259]">
-                              {apt.service?.category || 'Salon'}
-                            </p>
+                    <div
+                      key={apt.id}
+                      className="p-4 sm:p-5 space-y-3.5 md:rounded-xl md:border md:border-[#E5DDD0] md:bg-[#FBF8F3]/45 flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <SalonImage
+                              src={apt.service?.image || apt.serviceImage}
+                              alt={apt.service?.serviceName || apt.serviceName || 'Service'}
+                              sizes="48px"
+                              className="w-11 h-11 rounded-lg object-cover border border-[#E5DDD0] shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-[#231A16] truncate">
+                                {apt.service?.serviceName || apt.serviceName || 'Salon Service'}
+                              </p>
+                              <p className="text-xs text-[#6E6259] truncate">
+                                {apt.service?.category || 'Salon'}
+                              </p>
+                            </div>
                           </div>
+                          <span className="text-sm font-semibold text-[#231A16] tabular-nums shrink-0">
+                            {formatCurrency(apt.servicePrice)}
+                          </span>
                         </div>
-                        <span className="text-sm font-semibold text-[#231A16] tabular-nums shrink-0">
-                          {formatCurrency(apt.servicePrice)}
-                        </span>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#6E6259]">
+                          <span className="font-medium text-[#231A16] tabular-nums">
+                            {apt.appointmentDate} · {apt.timeSlot}
+                          </span>
+                          <span className="tabular-nums">
+                            Requested {new Date(apt.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#6E6259]">
-                        <span className="font-medium text-[#231A16] tabular-nums">
-                          {apt.appointmentDate} · {apt.timeSlot}
-                        </span>
-                        <span className="tabular-nums">
-                          Requested {new Date(apt.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-[#E5DDD0]/60">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <AppointmentStatusBadge status={apt.status} />
                           <PaymentStatusBadge status={apt.paymentStatus} />
@@ -464,6 +476,15 @@ export function CustomerDashboardView({
                               {payingId === apt.id ? 'Starting...' : 'Pay Now'}
                             </button>
                           )}
+                          {apt.paymentStatus === 'paid' && apt.stripeSessionId && (
+                            <Link
+                              href={`/payment/success?session_id=${encodeURIComponent(apt.stripeSessionId)}&appointment_id=${encodeURIComponent(apt.id)}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#1F6E43] bg-[#ECFDF5] hover:bg-[#D1FAE5] border border-[#1F6E43]/20 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              <Receipt className="w-3.5 h-3.5" aria-hidden="true" />
+                              Receipt
+                            </Link>
+                          )}
                           {canCancel && (
                             <button
                               type="button"
@@ -480,16 +501,16 @@ export function CustomerDashboardView({
                 })}
               </div>
 
-              <div className="hidden lg:block overflow-x-auto">
+              <div className="hidden xl:block">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-[#E5DDD0] bg-[#F3EDE2]/70 text-xs font-semibold text-[#6E6259]">
-                      <th className="py-3 pl-5 pr-3">Service</th>
-                      <th className="py-3 px-3">Appointment</th>
-                      <th className="py-3 px-3">Price</th>
-                      <th className="py-3 px-3">Status</th>
-                      <th className="py-3 px-3">Payment</th>
-                      <th className="py-3 pl-3 pr-5 text-right">Actions</th>
+                      <th className="py-3 pl-4 pr-3">Service</th>
+                      <th className="py-3 px-2.5">Appointment</th>
+                      <th className="py-3 px-2.5">Price</th>
+                      <th className="py-3 px-2.5">Status</th>
+                      <th className="py-3 px-2.5">Payment</th>
+                      <th className="py-3 pl-2.5 pr-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5DDD0]/70 text-sm">
@@ -499,8 +520,8 @@ export function CustomerDashboardView({
 
                       return (
                         <tr key={apt.id} className="hover:bg-[#F3EDE2]/35 transition-colors">
-                          <td className="py-3.5 pl-5 pr-3">
-                            <div className="flex items-center gap-2.5">
+                          <td className="py-3.5 pl-4 pr-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               <SalonImage
                                 src={apt.service?.image || apt.serviceImage}
                                 alt={apt.service?.serviceName || apt.serviceName || 'Service'}
@@ -508,7 +529,7 @@ export function CustomerDashboardView({
                                 className="w-10 h-10 rounded-lg object-cover border border-[#E5DDD0] shrink-0"
                               />
                               <div className="min-w-0">
-                                <p className="font-semibold text-[#231A16] max-w-[170px] truncate">
+                                <p className="font-semibold text-[#231A16] max-w-[165px] truncate">
                                   {apt.service?.serviceName || apt.serviceName || 'Salon Service'}
                                 </p>
                                 <p className="text-xs text-[#6E6259]">
@@ -517,7 +538,7 @@ export function CustomerDashboardView({
                               </div>
                             </div>
                           </td>
-                          <td className="py-3.5 px-3 whitespace-nowrap tabular-nums">
+                          <td className="py-3.5 px-2.5 whitespace-nowrap tabular-nums">
                             <p className="font-medium text-[#231A16]">
                               {apt.appointmentDate} · {apt.timeSlot}
                             </p>
@@ -525,16 +546,16 @@ export function CustomerDashboardView({
                               Requested {new Date(apt.createdAt).toLocaleDateString()}
                             </p>
                           </td>
-                          <td className="py-3.5 px-3 font-semibold text-[#231A16] tabular-nums whitespace-nowrap">
+                          <td className="py-3.5 px-2.5 font-semibold text-[#231A16] tabular-nums whitespace-nowrap">
                             {formatCurrency(apt.servicePrice)}
                           </td>
-                          <td className="py-3.5 px-3">
+                          <td className="py-3.5 px-2.5 whitespace-nowrap">
                             <AppointmentStatusBadge status={apt.status} />
                           </td>
-                          <td className="py-3.5 px-3">
+                          <td className="py-3.5 px-2.5 whitespace-nowrap">
                             <PaymentStatusBadge status={apt.paymentStatus} />
                           </td>
-                          <td className="py-3.5 pl-3 pr-5 text-right">
+                          <td className="py-3.5 pl-2.5 pr-4 text-right whitespace-nowrap">
                             <div className="inline-flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
@@ -643,9 +664,12 @@ export function CustomerDashboardView({
               </div>
             ) : (
               <>
-                <div className="lg:hidden divide-y divide-[#E5DDD0]/70">
+                <div className="xl:hidden divide-y divide-[#E5DDD0]/70 md:divide-y-0 md:grid md:grid-cols-2 md:gap-4 md:p-5">
                   {transactions.map((txn) => (
-                    <div key={txn.id} className="p-4 sm:px-6 sm:py-5 space-y-3">
+                    <div
+                      key={txn.id}
+                      className="p-4 sm:p-5 space-y-3 md:rounded-xl md:border md:border-[#E5DDD0] md:bg-[#FBF8F3]/45 flex flex-col justify-between"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <SalonImage
@@ -670,7 +694,7 @@ export function CustomerDashboardView({
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E5DDD0]/60">
                         <div className="flex items-center gap-2">
                           <PaymentStatusBadge status={txn.status} />
                           <span className="text-xs text-[#6E6259] tabular-nums">
@@ -691,22 +715,22 @@ export function CustomerDashboardView({
                   ))}
                 </div>
 
-                <div className="hidden lg:block overflow-x-auto">
+                <div className="hidden xl:block">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-[#E5DDD0] bg-[#F3EDE2]/70 text-xs font-semibold text-[#6E6259]">
-                        <th className="py-3 pl-5 pr-3">Service &amp; Reference</th>
-                        <th className="py-3 px-3">Appointment</th>
-                        <th className="py-3 px-3">Amount</th>
-                        <th className="py-3 px-3">Status</th>
-                        <th className="py-3 pl-3 pr-5 text-right">Receipt</th>
+                        <th className="py-3 pl-4 pr-3">Service &amp; Reference</th>
+                        <th className="py-3 px-2.5">Appointment</th>
+                        <th className="py-3 px-2.5">Amount</th>
+                        <th className="py-3 px-2.5">Status</th>
+                        <th className="py-3 pl-2.5 pr-4 text-right">Receipt</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5DDD0]/70 text-sm">
                       {transactions.map((txn) => (
                         <tr key={txn.id} className="hover:bg-[#F3EDE2]/35 transition-colors">
-                          <td className="py-3.5 pl-5 pr-3">
-                            <div className="flex items-center gap-3">
+                          <td className="py-3.5 pl-4 pr-3">
+                            <div className="flex items-center gap-3 min-w-0">
                               <SalonImage
                                 src={txn.service?.image || txn.appointment?.serviceImage}
                                 alt={txn.service?.serviceName || txn.appointment?.serviceName || 'Service'}
@@ -714,10 +738,10 @@ export function CustomerDashboardView({
                                 className="w-10 h-10 rounded-lg object-cover border border-[#E5DDD0] shrink-0"
                               />
                               <div className="min-w-0">
-                                <p className="font-semibold text-[#231A16] max-w-[230px] truncate">
+                                <p className="font-semibold text-[#231A16] max-w-[220px] truncate">
                                   {txn.service?.serviceName || txn.appointment?.serviceName || 'Salon Service'}
                                 </p>
-                                <p className="font-mono text-[11px] text-[#6E6259] truncate max-w-[230px]">
+                                <p className="font-mono text-[11px] text-[#6E6259] truncate max-w-[220px]">
                                   {txn.stripeSessionId.length > 24
                                     ? `${txn.stripeSessionId.slice(0, 22)}…`
                                     : txn.stripeSessionId}
@@ -725,7 +749,7 @@ export function CustomerDashboardView({
                               </div>
                             </div>
                           </td>
-                          <td className="py-3.5 px-3 whitespace-nowrap tabular-nums">
+                          <td className="py-3.5 px-2.5 whitespace-nowrap tabular-nums">
                             <p className="text-xs font-medium text-[#231A16]">
                               {txn.appointment
                                 ? `${txn.appointment.appointmentDate} · ${txn.appointment.timeSlot}`
@@ -735,13 +759,13 @@ export function CustomerDashboardView({
                               Paid {new Date(txn.createdAt).toLocaleDateString()}
                             </p>
                           </td>
-                          <td className="py-3.5 px-3 font-semibold text-[#1F6E43] tabular-nums whitespace-nowrap">
+                          <td className="py-3.5 px-2.5 font-semibold text-[#1F6E43] tabular-nums whitespace-nowrap">
                             {formatCurrency(txn.amount, txn.currency)}
                           </td>
-                          <td className="py-3.5 px-3 whitespace-nowrap">
+                          <td className="py-3.5 px-2.5 whitespace-nowrap">
                             <PaymentStatusBadge status={txn.status} />
                           </td>
-                          <td className="py-3.5 pl-3 pr-5 text-right whitespace-nowrap">
+                          <td className="py-3.5 pl-2.5 pr-4 text-right whitespace-nowrap">
                             {txn.status === 'paid' ? (
                               <Link
                                 href={`/payment/success?session_id=${encodeURIComponent(txn.stripeSessionId)}&appointment_id=${encodeURIComponent(txn.appointmentId)}`}
@@ -765,7 +789,71 @@ export function CustomerDashboardView({
         </div>
       )}
 
-      {section === 'profile' && <ProfileSection />}
+      {section === 'profile' && user && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          <aside className="lg:col-span-4 bg-[#FFFFFF] border border-[#E5DDD0] rounded-2xl overflow-hidden shadow-[0_16px_40px_-20px_rgba(35,26,22,0.18)]">
+            <div className="relative h-36 w-full overflow-hidden border-b border-[#B5893A]/30 bg-[#1A1412]">
+              <SalonImage
+                src="/images/hero_salon_interior_1795006413558.jpg"
+                alt="SalonBook Atelier Interior"
+                sizes="(max-width: 1024px) 100vw, 380px"
+                className="w-full h-full object-cover object-center transform scale-105 transition-transform duration-700 hover:scale-110"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-gradient-to-t from-[#1F1714] via-[#1F1714]/40 to-black/25"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(212,175,106,0.35),transparent_60%)]"
+              />
+            </div>
+
+            <div className="relative z-10 px-5 pb-5">
+              <div className="-mt-14 flex items-end">
+                <div className="relative group">
+                  <SalonImage
+                    src={user.image}
+                    alt={user.name}
+                    sizes="96px"
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-4 border-[#FFFFFF] ring-2 ring-[#B5893A]/70 shadow-xl bg-[#F3EDE2] transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <span
+                    className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-sm flex items-center justify-center text-[9px] text-white font-bold"
+                    title="Active Account"
+                  >
+                    ✓
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <h3 className="font-display text-2xl font-semibold text-[#231A16] leading-tight">
+                  {user.name}
+                </h3>
+                <p className="text-xs font-medium text-[#9A7028] mt-0.5">
+                  Exclusive SalonBook Atelier Member
+                </p>
+
+                <div className="mt-3.5 space-y-2 text-xs">
+                  <div className="flex items-center gap-2.5 p-2 rounded-lg bg-[#FAF7F1] border border-[#EAE2D5] text-[#3D332C]">
+                    <Mail className="w-3.5 h-3.5 text-[#9A7028] shrink-0" aria-hidden="true" />
+                    <span className="truncate font-medium">{user.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 p-2 rounded-lg bg-[#FAF7F1] border border-[#EAE2D5] text-[#3D332C]">
+                    <Phone className="w-3.5 h-3.5 text-[#9A7028] shrink-0" aria-hidden="true" />
+                    <span className="tabular-nums font-medium">{user.phone || 'No phone added'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <div className="lg:col-span-8">
+            <ProfileSection className="w-full max-w-none" />
+          </div>
+        </div>
+      )}
 
       {selectedApt && (
         <div
@@ -773,20 +861,23 @@ export function CustomerDashboardView({
           role="dialog"
           aria-modal="true"
           aria-labelledby="apt-detail-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedApt(null);
+          }}
         >
-          <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-6 shadow-xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 sm:p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#E5DDD0]/80">
-              <div>
+              <div className="min-w-0">
                 <h3 id="apt-detail-title" className="font-display text-2xl font-semibold text-[#231A16]">
                   Appointment Details
                 </h3>
-                <p className="text-xs font-mono text-[#6E6259] mt-0.5">{selectedApt.id}</p>
+                <p className="text-xs font-mono text-[#6E6259] mt-0.5 break-all">{selectedApt.id}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedApt(null)}
                 aria-label="Close appointment details"
-                className="p-1 text-[#6E6259] hover:text-[#231A16]"
+                className="p-1.5 text-[#6E6259] hover:text-[#231A16] shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -841,7 +932,16 @@ export function CustomerDashboardView({
               )}
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              {selectedApt.paymentStatus === 'paid' && selectedApt.stripeSessionId && (
+                <Link
+                  href={`/payment/success?session_id=${encodeURIComponent(selectedApt.stripeSessionId)}&appointment_id=${encodeURIComponent(selectedApt.id)}`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-[#1F6E43] bg-[#ECFDF5] hover:bg-[#D1FAE5] border border-[#1F6E43]/20 rounded-lg transition-colors"
+                >
+                  <Receipt className="w-4 h-4" aria-hidden="true" />
+                  View Receipt
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => setSelectedApt(null)}

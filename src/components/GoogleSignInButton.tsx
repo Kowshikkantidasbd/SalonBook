@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { authApi, setStoredToken } from '@/lib/api';
 import type { PublicUser } from '@/lib/salonRules';
 
 const BUTTON_LABELS: Record<'signin_with' | 'signup_with' | 'continue_with', string> = {
@@ -9,6 +10,64 @@ const BUTTON_LABELS: Record<'signin_with' | 'signup_with' | 'continue_with', str
   signup_with: 'Sign up with Google',
   continue_with: 'Continue with Google',
 };
+
+const DEFAULT_GOOGLE_CLIENT_ID =
+  '801397027922-te0vr2mpme4oi60g1m6oh8hvmc0tt8q4.apps.googleusercontent.com';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        oauth2?: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            callback: (response: {
+              access_token?: string;
+              error?: string;
+              error_description?: string;
+            }) => void;
+          }) => {
+            requestAccessToken: (options?: { prompt?: string }) => void;
+          };
+        };
+        id?: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential?: string }) => void;
+            auto_select?: boolean;
+          }) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
+
+function ensureGsiScriptLoaded(): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+  if (window.google?.accounts?.oauth2) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://accounts.google.com/gsi/client"]'
+    );
+    if (existing) {
+      existing.addEventListener('load', () => resolve(true), { once: true });
+      existing.addEventListener('error', () => resolve(false), { once: true });
+      if (window.google?.accounts?.oauth2) resolve(true);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
 
 export function GoogleSignInButton({
   label = 'signin_with',
@@ -21,14 +80,143 @@ export function GoogleSignInButton({
   onSuccess?: (user: PublicUser) => void;
   onError: (message: string) => void;
 }) {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, setUserDirect } = useAuth();
   const [loading, setLoading] = useState(false);
+  const tokenClientRef = useRef<{ requestAccessToken: (opts?: { prompt?: string }) => void } | null>(null);
 
   const buttonText = BUTTON_LABELS[label] || 'Sign in with Google';
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+
+  useEffect(() => {
+    let mounted = true;
+
+    void ensureGsiScriptLoaded().then((loaded) => {
+      if (!mounted || !loaded || !window.google?.accounts) return;
+
+      try {
+        // Initialize Token Client for Google Sign-In popup (does NOT require client_secret)
+        if (window.google.accounts.oauth2) {
+          tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: 'openid email profile',
+            callback: async (tokenResponse) => {
+              if (tokenResponse.error || !tokenResponse.access_token) {
+                setLoading(false);
+                if (tokenResponse.error !== 'popup_closed_by_user') {
+                  const errMessage =
+                    tokenResponse.error_description ||
+                    tokenResponse.error ||
+                    'Google sign-in was cancelled.';
+                  onError(errMessage);
+                }
+                return;
+              }
+
+              try {
+                const res = await authApi.googleAuth<PublicUser>({
+                  accessToken: tokenResponse.access_token,
+                  next: callbackURL,
+                });
+                setStoredToken(res.token);
+                setUserDirect(res.user);
+                onSuccess?.(res.user);
+              } catch (err: unknown) {
+                setLoading(false);
+                const message =
+                  err instanceof Error && err.message
+                    ? err.message
+                    : 'Google sign-in failed. Please try again.';
+                onError(message);
+              }
+            },
+          });
+        }
+
+        // Also initialize GIS One-Tap Credential callback
+        if (window.google.accounts.id) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            auto_select: false,
+            callback: async (credentialResponse) => {
+              if (!credentialResponse?.credential) return;
+              setLoading(true);
+              try {
+                const res = await authApi.googleAuth<PublicUser>({
+                  credential: credentialResponse.credential,
+                  next: callbackURL,
+                });
+                setStoredToken(res.token);
+                setUserDirect(res.user);
+                onSuccess?.(res.user);
+              } catch (err: unknown) {
+                setLoading(false);
+                const message =
+                  err instanceof Error && err.message
+                    ? err.message
+                    : 'Google sign-in failed. Please try again.';
+                onError(message);
+              }
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('Google GSI initialization warning:', err);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [clientId, callbackURL, onSuccess, onError, setUserDirect]);
 
   const handleGoogleSignIn = async () => {
     if (loading) return;
     setLoading(true);
+
+    // 1. Try Google Identity Services Token Client directly:
+    // This opens Google's native popup from accounts.google.com and DOES NOT require client_secret!
+    if (!tokenClientRef.current && window.google?.accounts?.oauth2) {
+      try {
+        tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'openid email profile',
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error || !tokenResponse.access_token) {
+              setLoading(false);
+              if (tokenResponse.error !== 'popup_closed_by_user') {
+                onError(tokenResponse.error_description || tokenResponse.error || 'Google sign-in was cancelled.');
+              }
+              return;
+            }
+            try {
+              const res = await authApi.googleAuth<PublicUser>({
+                accessToken: tokenResponse.access_token,
+                next: callbackURL,
+              });
+              setStoredToken(res.token);
+              setUserDirect(res.user);
+              onSuccess?.(res.user);
+            } catch (err: unknown) {
+              setLoading(false);
+              onError(err instanceof Error ? err.message : 'Google sign-in failed.');
+            }
+          },
+        });
+      } catch {
+        // Fall back below
+      }
+    }
+
+    if (tokenClientRef.current) {
+      try {
+        tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (err) {
+        console.warn('tokenClient.requestAccessToken failed, falling back:', err);
+      }
+    }
+
+    // 2. Fallback to AuthContext popup flow
     try {
       const signedInUser = await signInWithGoogle(callbackURL);
       if (signedInUser) {

@@ -13,12 +13,12 @@ export function ProtectedRoute({
   children: React.ReactNode;
   allowedRoles?: UserRole[];
 }) {
-  const { user, loading } = useAuth();
+  const { user, loading, loggingOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname() || '/';
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || loggingOut) return;
     if (!user) {
       router.replace(`/sign-in?redirect=${encodeURIComponent(pathname)}`);
       return;
@@ -26,7 +26,11 @@ export function ProtectedRoute({
     if (allowedRoles && !allowedRoles.includes(user.role)) {
       router.replace(user.role === 'admin' ? '/dashboard/admin' : '/dashboard/customer');
     }
-  }, [loading, user, allowedRoles, pathname, router]);
+  }, [loading, loggingOut, user, allowedRoles, pathname, router]);
+
+  if (loggingOut) {
+    return <SalonLoader size="md" fullScreen label="Signing out..." />;
+  }
 
   if (loading || !user) {
     return <SalonLoader size="md" fullScreen label="Verifying studio access..." />;

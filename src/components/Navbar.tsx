@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowUpRight, ChevronDown, LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, LayoutDashboard, LogOut, Menu, User, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { prefetchApiData } from '@/lib/api';
@@ -33,14 +33,26 @@ export function Navbar() {
         setDropdownOpen(false);
       }
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setDropdownOpen(false);
+        setMobileMenuOpen(false);
+      }
+    }
     document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const handleLogout = async () => {
+    setDropdownOpen(false);
+    setMobileMenuOpen(false);
     await logout();
     showToast('Signed out successfully.', 'success');
-    router.push('/');
+    router.replace('/');
   };
 
   const navLinkClass = (path: string) => {
@@ -68,10 +80,10 @@ export function Navbar() {
         aria-hidden="true"
         className="h-[2px] w-full bg-gradient-to-r from-[#E5DDD0]/30 via-[#B5893A]/75 to-[#E5DDD0]/30"
       />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-4 md:gap-6 lg:gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[72px] flex items-center justify-between gap-3 sm:gap-4 md:gap-6 lg:gap-8">
         <Link
           href="/"
-          className="group inline-flex items-center gap-2.5 font-display text-[1.75rem] leading-none font-semibold tracking-[-0.015em] text-[#231A16] whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B5893A]/60 rounded-sm"
+          className="group inline-flex items-center gap-2 sm:gap-2.5 font-display text-[1.55rem] sm:text-[1.75rem] leading-none font-semibold tracking-[-0.015em] text-[#231A16] whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B5893A]/60 rounded-sm"
         >
           <svg
             viewBox="0 0 24 24"
@@ -109,27 +121,6 @@ export function Navbar() {
             Browse Services
             {navUnderline('/services')}
           </Link>
-          {user && (
-            <Link
-              href={dashboardPath}
-              onMouseEnter={() =>
-                prefetchApiData(
-                  user.role === 'admin' ? '/api/admin/overview' : '/api/appointments/my',
-                  15000
-                )
-              }
-              onFocus={() =>
-                prefetchApiData(
-                  user.role === 'admin' ? '/api/admin/overview' : '/api/appointments/my',
-                  15000
-                )
-              }
-              className={navLinkClass('/dashboard')}
-            >
-              Dashboard
-              {navUnderline('/dashboard')}
-            </Link>
-          )}
         </nav>
 
         <div className="flex items-center gap-3 shrink-0">
@@ -173,6 +164,14 @@ export function Navbar() {
                       {user.role} Account
                     </p>
                   </div>
+                  <Link
+                    role="menuitem"
+                    href="/profile"
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#231A16] hover:bg-[#FBF8F3] transition-colors"
+                  >
+                    <User className="w-4 h-4 text-[#9A7028]" aria-hidden="true" />
+                    Profile
+                  </Link>
                   <Link
                     role="menuitem"
                     href={dashboardPath}
@@ -231,46 +230,52 @@ export function Navbar() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-[#E5DDD0] bg-[#FFFFFF] px-4 py-4 space-y-2">
+        <div className="md:hidden border-t border-[#E5DDD0] bg-[#FFFFFF] px-4 py-3.5 space-y-1 shadow-lg">
           <Link
             href="/"
-            className="block py-2 text-sm font-medium text-[#231A16] hover:text-[#9A7028]"
+            className="block py-2.5 px-2.5 rounded-lg text-sm font-medium text-[#231A16] hover:text-[#9A7028] hover:bg-[#FBF8F3] transition-colors"
           >
             Home
           </Link>
           <Link
             href="/services"
-            className="block py-2 text-sm font-medium text-[#231A16] hover:text-[#9A7028]"
+            className="block py-2.5 px-2.5 rounded-lg text-sm font-medium text-[#231A16] hover:text-[#9A7028] hover:bg-[#FBF8F3] transition-colors"
           >
             Browse Services
           </Link>
           {user ? (
             <>
               <Link
+                href="/profile"
+                className="block py-2.5 px-2.5 rounded-lg text-sm font-medium text-[#231A16] hover:text-[#9A7028] hover:bg-[#FBF8F3] transition-colors"
+              >
+                Profile
+              </Link>
+              <Link
                 href={dashboardPath}
-                className="block py-2 text-sm font-medium text-[#9A7028]"
+                className="block py-2.5 px-2.5 rounded-lg text-sm font-medium text-[#9A7028] hover:bg-[#FBF8F3] transition-colors"
               >
                 Dashboard ({user.role})
               </Link>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="block w-full text-left py-2 text-sm font-medium text-[#9F1239]"
+                className="block w-full text-left py-2.5 px-2.5 rounded-lg text-sm font-medium text-[#9F1239] hover:bg-[#FFF1F2] transition-colors"
               >
                 Logout
               </button>
             </>
           ) : (
-            <div className="pt-2 flex items-center gap-3">
+            <div className="pt-2.5 flex items-center gap-3">
               <Link
                 href="/sign-in"
-                className="flex-1 text-center py-2.5 text-sm font-medium text-[#231A16] bg-[#F3EDE2] rounded-lg"
+                className="flex-1 text-center py-2.5 text-sm font-semibold text-[#231A16] bg-[#F3EDE2] hover:bg-[#E5DDD0] rounded-lg transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 href="/sign-up"
-                className="flex-1 text-center py-2.5 text-sm font-medium text-[#FBF8F3] bg-[#231A16] rounded-lg"
+                className="flex-1 text-center py-2.5 text-sm font-semibold text-[#FBF8F3] bg-[#231A16] hover:bg-[#382B24] rounded-lg transition-colors"
               >
                 Sign Up
               </Link>

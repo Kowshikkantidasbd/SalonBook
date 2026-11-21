@@ -44,9 +44,12 @@ export function AdminServicesTab({
         <div className="p-10 text-center text-sm text-[#6E6259]">No services added yet.</div>
       ) : (
         <>
-          <div className="lg:hidden divide-y divide-[#E5DDD0]/70">
+          <div className="xl:hidden divide-y divide-[#E5DDD0]/70 md:divide-y-0 md:grid md:grid-cols-2 md:gap-4 md:p-5">
             {services.map((svc) => (
-              <div key={svc.id} className="p-4 sm:px-6 sm:py-5 space-y-3">
+              <div
+                key={svc.id}
+                className="p-4 sm:p-5 space-y-3 md:rounded-xl md:border md:border-[#E5DDD0] md:bg-[#FBF8F3]/45 flex flex-col justify-between"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <SalonImage
@@ -59,7 +62,7 @@ export function AdminServicesTab({
                       <p className="text-sm font-semibold text-[#231A16] truncate">
                         {svc.serviceName}
                       </p>
-                      <p className="text-xs text-[#6E6259] tabular-nums mt-0.5">
+                      <p className="text-xs text-[#6E6259] tabular-nums mt-0.5 truncate">
                         {svc.category} · {formatDuration(svc.duration)}
                       </p>
                     </div>
@@ -69,7 +72,7 @@ export function AdminServicesTab({
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-[#E5DDD0]/60">
                   <ServiceStatusBadge status={svc.status} />
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -100,23 +103,23 @@ export function AdminServicesTab({
             ))}
           </div>
 
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden xl:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E5DDD0] bg-[#F3EDE2]/70 text-xs font-semibold text-[#6E6259]">
-                  <th className="py-3 pl-5 pr-3">Service</th>
-                  <th className="py-3 px-3">Category</th>
-                  <th className="py-3 px-3">Price</th>
-                  <th className="py-3 px-3">Duration</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 pl-3 pr-5 text-right">Actions</th>
+                  <th className="py-3 pl-4 pr-3">Service</th>
+                  <th className="py-3 px-2.5">Category</th>
+                  <th className="py-3 px-2.5">Price</th>
+                  <th className="py-3 px-2.5">Duration</th>
+                  <th className="py-3 px-2.5">Status</th>
+                  <th className="py-3 pl-2.5 pr-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5DDD0]/70 text-sm">
                 {services.map((svc) => (
                   <tr key={svc.id} className="hover:bg-[#F3EDE2]/35 transition-colors">
-                    <td className="py-3.5 pl-5 pr-3">
-                      <div className="flex items-center gap-2.5">
+                    <td className="py-3.5 pl-4 pr-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <SalonImage
                           src={svc.image}
                           alt={svc.serviceName}
@@ -128,20 +131,20 @@ export function AdminServicesTab({
                         </span>
                       </div>
                     </td>
-                    <td className="py-3.5 px-3 text-xs text-[#6E6259] whitespace-nowrap">
+                    <td className="py-3.5 px-2.5 text-xs text-[#6E6259] whitespace-nowrap">
                       {svc.category}
                     </td>
-                    <td className="py-3.5 px-3 font-semibold text-[#231A16] tabular-nums whitespace-nowrap">
+                    <td className="py-3.5 px-2.5 font-semibold text-[#231A16] tabular-nums whitespace-nowrap">
                       {formatCurrency(svc.price)}
                     </td>
-                    <td className="py-3.5 px-3 text-xs text-[#6E6259] tabular-nums whitespace-nowrap">
+                    <td className="py-3.5 px-2.5 text-xs text-[#6E6259] tabular-nums whitespace-nowrap">
                       {formatDuration(svc.duration)}
                     </td>
-                    <td className="py-3.5 px-3">
+                    <td className="py-3.5 px-2.5 whitespace-nowrap">
                       <ServiceStatusBadge status={svc.status} />
                     </td>
-                    <td className="py-3.5 pl-3 pr-5 text-right">
-                      <div className="inline-flex items-center justify-end gap-2">
+                    <td className="py-3.5 pl-2.5 pr-4 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={() => onToggleStatus(svc)}
@@ -152,7 +155,7 @@ export function AdminServicesTab({
                         <Link
                           href={`/dashboard/admin/services/edit/${svc.id}`}
                           aria-label={`Edit ${svc.serviceName}`}
-                          className="p-2 text-[#6E6259] hover:text-[#9A7028] hover:bg-[#F3EDE2] rounded-lg transition-colors"
+                          className="p-1.5 text-[#6E6259] hover:text-[#9A7028] hover:bg-[#F3EDE2] rounded-lg transition-colors"
                         >
                           <Edit3 className="w-4 h-4" />
                         </Link>
@@ -160,7 +163,7 @@ export function AdminServicesTab({
                           type="button"
                           onClick={() => onDelete(svc)}
                           aria-label={`Delete ${svc.serviceName}`}
-                          className="p-2 text-[#6E6259] hover:text-[#9F1239] hover:bg-[#FFF1F2] rounded-lg transition-colors"
+                          className="p-1.5 text-[#6E6259] hover:text-[#9F1239] hover:bg-[#FFF1F2] rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

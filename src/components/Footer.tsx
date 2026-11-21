@@ -5,7 +5,7 @@ export function Footer() {
   return (
     <footer className="bg-[#231A16] text-[#F3EDE2] border-t border-[#B5893A]/25 mt-14 sm:mt-20 lg:mt-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-14 lg:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 sm:gap-10">
           {/* Logo, Short Description & Social Media Links */}
           <div className="lg:col-span-4">
             <Link

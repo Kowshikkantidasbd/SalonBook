@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 
 interface ConfirmDialogProps {
@@ -25,6 +26,17 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  useEffect(() => {
+    if (!open || loading) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, loading, onCancel]);
+
   if (!open) return null;
 
   return (
@@ -33,6 +45,11 @@ export function ConfirmDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
+      onClick={(e) => {
+        if (!loading && e.target === e.currentTarget) {
+          onCancel();
+        }
+      }}
     >
       <div className="w-full max-w-md rounded-xl bg-[#FFFFFF] border border-[#E5DDD0] shadow-2xl p-6">
         <div className="flex items-start justify-between gap-4">

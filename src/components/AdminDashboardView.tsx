@@ -1,10 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Calendar,
   CreditCard,
   LayoutDashboard,
+  Mail,
+  Phone,
   PlusCircle,
   Scissors,
   User,
@@ -29,13 +32,13 @@ import type {
   AdminTransaction,
 } from '@/components/admin/types';
 import {
-  apiFetch,
-  apiFetchRevalidate,
+  adminApi,
   getCachedApiData,
   invalidateApiCache,
   isApiCacheFresh,
   prefetchApiData,
 } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import type { ServiceRecord } from '@/lib/salonRules';
 
@@ -66,7 +69,9 @@ export function AdminDashboardView({
   section: AdminSection;
   editId?: string;
 }) {
+  const { user } = useAuth();
   const { showToast } = useToast();
+  const router = useRouter();
 
   const cachedStats = getCachedApiData<{ stats: AdminStats }>('/api/admin/stats', 300000);
   const cachedServices = getCachedApiData<{ services: ServiceRecord[] }>(
@@ -113,15 +118,27 @@ export function AdminDashboardView({
   const [updatingBlock, setUpdatingBlock] = useState(false);
   const [viewUserDetail, setViewUserDetail] = useState<AdminCustomer | null>(null);
 
+  useEffect(() => {
+    if (!viewAptDetail && !viewUserDetail) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setViewAptDetail(null);
+        setViewUserDetail(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [viewAptDetail, viewUserDetail]);
+
   const loadSectionData = useCallback(
-    async (forceFresh = false) => {
+    async (forceFresh = false, silent = false) => {
+      if (forceFresh) {
+        invalidateApiCache('/api/admin');
+      }
+
       if (section === 'profile' || section === 'service_new') {
         setLoading(false);
         return;
-      }
-
-      if (forceFresh) {
-        invalidateApiCache('/api/admin');
       }
 
       const hasCached = (() => {
@@ -145,28 +162,16 @@ export function AdminDashboardView({
         return false;
       })();
 
-      if (!hasCached) {
+      if (!hasCached && !silent) {
         setLoading(true);
       }
 
       try {
         if (section === 'overview') {
-          if (!forceFresh && isApiCacheFresh('/api/admin/overview', 15000)) {
-            const ov = getCachedApiData<{ stats: AdminStats; appointments: AdminAppointment[] }>(
-              '/api/admin/overview',
-              300000
-            );
-            if (ov) {
-              setStats(ov.stats);
-              setAppointments(ov.appointments);
-              setLoading(false);
-              return;
-            }
-          }
-          const overviewRes = await apiFetchRevalidate<{
+          const overviewRes = await adminApi.getOverview<{
             stats: AdminStats;
             appointments: AdminAppointment[];
-          }>('/api/admin/overview');
+          }>();
           setStats(overviewRes.stats);
           setAppointments(overviewRes.appointments);
           prefetchApiData('/api/admin/services', 30000);
@@ -182,25 +187,10 @@ export function AdminDashboardView({
               return;
             }
           }
-          const svcRes = await apiFetchRevalidate<{ services: ServiceRecord[] }>(
-            '/api/admin/services'
-          );
+          const svcRes = await adminApi.getServices<ServiceRecord>();
           setServices(svcRes.services);
         } else if (section === 'appointments') {
-          if (!forceFresh && isApiCacheFresh('/api/admin/appointments', 15000)) {
-            const cached = getCachedApiData<{ appointments: AdminAppointment[] }>(
-              '/api/admin/appointments',
-              300000
-            );
-            if (cached) {
-              setAppointments(cached.appointments);
-              setLoading(false);
-              return;
-            }
-          }
-          const aptRes = await apiFetchRevalidate<{ appointments: AdminAppointment[] }>(
-            '/api/admin/appointments'
-          );
+          const aptRes = await adminApi.getAppointments<AdminAppointment>();
           setAppointments(aptRes.appointments);
         } else if (section === 'users') {
           if (!forceFresh && isApiCacheFresh('/api/admin/users', 15000)) {
@@ -211,7 +201,7 @@ export function AdminDashboardView({
               return;
             }
           }
-          const usrRes = await apiFetchRevalidate<{ users: AdminCustomer[] }>('/api/admin/users');
+          const usrRes = await adminApi.getUsers<AdminCustomer>();
           setUsers(usrRes.users);
         } else if (section === 'transactions') {
           if (!forceFresh && isApiCacheFresh('/api/admin/transactions', 15000)) {
@@ -225,36 +215,52 @@ export function AdminDashboardView({
               return;
             }
           }
-          const txnRes = await apiFetchRevalidate<{ transactions: AdminTransaction[] }>(
-            '/api/admin/transactions'
-          );
+          const txnRes = await adminApi.getTransactions<AdminTransaction>();
           setTransactions(txnRes.transactions);
         }
       } catch (err) {
-        if (!hasCached) {
+        if (!hasCached && !silent) {
           const msg = err instanceof Error ? err.message : 'Unable to load admin dashboard data.';
           showToast(msg, 'error');
         }
       } finally {
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
       }
     },
     [section, showToast]
   );
 
   useEffect(() => {
-    loadSectionData(false);
+    loadSectionData(false, false);
   }, [loadSectionData]);
+
+  useEffect(() => {
+    if (section !== 'overview' && section !== 'appointments' && section !== 'transactions') {
+      return;
+    }
+    const handleRefresh = () => {
+      if (document.visibilityState === 'visible') {
+        void loadSectionData(true, true);
+      }
+    };
+    window.addEventListener('focus', handleRefresh);
+    document.addEventListener('visibilitychange', handleRefresh);
+    return () => {
+      window.removeEventListener('focus', handleRefresh);
+      document.removeEventListener('visibilitychange', handleRefresh);
+    };
+  }, [section, loadSectionData]);
 
   const handleToggleServiceStatus = async (svc: ServiceRecord) => {
     const nextStatus = svc.status === 'active' ? 'inactive' : 'active';
     try {
-      await apiFetch(`/api/admin/services/${encodeURIComponent(svc.id)}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: nextStatus }),
-      });
+      await adminApi.toggleServiceStatus<ServiceRecord>(svc.id, nextStatus);
+      invalidateApiCache('/api/services');
+      router.refresh();
       showToast(`Service marked as ${nextStatus}.`, 'success');
-      await loadSectionData(true);
+      await loadSectionData(true, true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to update service status.';
       showToast(msg, 'error');
@@ -265,12 +271,12 @@ export function AdminDashboardView({
     if (!deleteTarget) return;
     setDeletingService(true);
     try {
-      await apiFetch(`/api/admin/services/${encodeURIComponent(deleteTarget.id)}`, {
-        method: 'DELETE',
-      });
+      await adminApi.deleteService(deleteTarget.id);
+      invalidateApiCache('/api/services');
+      router.refresh();
       showToast('Service deleted.', 'success');
       setDeleteTarget(null);
-      await loadSectionData(true);
+      await loadSectionData(true, true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to delete service.';
       showToast(msg, 'error');
@@ -288,13 +294,14 @@ export function AdminDashboardView({
       if (confirmingAptId === apt.id) return;
       setConfirmingAptId(apt.id);
     } else {
+      if (updatingApt) return;
       setUpdatingApt(true);
     }
     try {
-      await apiFetch(`/api/admin/appointments/${encodeURIComponent(apt.id)}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: nextStatus }),
-      });
+      await adminApi.updateAppointmentStatus<AdminAppointment>(apt.id, nextStatus);
+      setAppointments((prev) =>
+        prev.map((item) => (item.id === apt.id ? { ...item, status: nextStatus } : item))
+      );
       showToast(
         nextStatus === 'confirmed'
           ? 'Appointment confirmed. Customer can now pay online.'
@@ -304,10 +311,14 @@ export function AdminDashboardView({
       if (nextStatus === 'cancelled') {
         setCancelAptTarget(null);
       }
-      await loadSectionData(true);
+      await loadSectionData(true, true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to update appointment.';
       showToast(msg, 'error');
+      if (nextStatus === 'cancelled') {
+        setCancelAptTarget(null);
+      }
+      await loadSectionData(true, true);
     } finally {
       if (nextStatus === 'confirmed') {
         setConfirmingAptId(null);
@@ -338,16 +349,13 @@ export function AdminDashboardView({
     setUpdatingBlock(true);
     try {
       const nextBlocked = !blockTarget.isBlocked;
-      await apiFetch(`/api/admin/users/${encodeURIComponent(blockTarget.id)}/block`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isBlocked: nextBlocked }),
-      });
+      await adminApi.setUserBlocked(blockTarget.id, nextBlocked);
       showToast(
         nextBlocked ? `${blockTarget.name} has been blocked.` : `${blockTarget.name} has been unblocked.`,
         'success'
       );
       setBlockTarget(null);
-      await loadSectionData(true);
+      await loadSectionData(true, true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to update user status.';
       showToast(msg, 'error');
@@ -384,7 +392,11 @@ export function AdminDashboardView({
         <AdminServiceFormTab
           editId={editId}
           services={services}
-          onSaved={() => loadSectionData(true)}
+          loading={loading}
+          onSaved={async () => {
+            invalidateApiCache('/api/services');
+            await loadSectionData(true, true);
+          }}
         />
       )}
 
@@ -410,35 +422,102 @@ export function AdminDashboardView({
         <AdminTransactionsTab loading={loading} transactions={transactions} />
       )}
 
-      {section === 'profile' && <ProfileSection />}
+      {section === 'profile' && user && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          <aside className="lg:col-span-4 bg-[#FFFFFF] border border-[#E5DDD0] rounded-2xl overflow-hidden shadow-[0_16px_40px_-20px_rgba(35,26,22,0.18)]">
+            <div className="relative h-36 w-full overflow-hidden border-b border-[#B5893A]/30 bg-[#1A1412]">
+              <SalonImage
+                src="/images/hero_salon_interior_1795006413558.jpg"
+                alt="SalonBook Atelier Interior"
+                sizes="(max-width: 1024px) 100vw, 380px"
+                className="w-full h-full object-cover object-center transform scale-105 transition-transform duration-700 hover:scale-110"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-gradient-to-t from-[#1F1714] via-[#1F1714]/40 to-black/25"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(212,175,106,0.35),transparent_60%)]"
+              />
+            </div>
+
+            <div className="relative z-10 px-5 pb-5">
+              <div className="-mt-14 flex items-end">
+                <div className="relative group">
+                  <SalonImage
+                    src={user.image}
+                    alt={user.name}
+                    sizes="96px"
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-4 border-[#FFFFFF] ring-2 ring-[#B5893A]/70 shadow-xl bg-[#F3EDE2] transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <span
+                    className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-sm flex items-center justify-center text-[9px] text-white font-bold"
+                    title="Active Admin"
+                  >
+                    ✓
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <h3 className="font-display text-2xl font-semibold text-[#231A16] leading-tight">
+                  {user.name}
+                </h3>
+                <p className="text-xs font-medium text-[#9A7028] mt-0.5">
+                  SalonBook Atelier Creative Director
+                </p>
+
+                <div className="mt-3.5 space-y-2 text-xs">
+                  <div className="flex items-center gap-2.5 p-2 rounded-lg bg-[#FAF7F1] border border-[#EAE2D5] text-[#3D332C]">
+                    <Mail className="w-3.5 h-3.5 text-[#9A7028] shrink-0" aria-hidden="true" />
+                    <span className="truncate font-medium">{user.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 p-2 rounded-lg bg-[#FAF7F1] border border-[#EAE2D5] text-[#3D332C]">
+                    <Phone className="w-3.5 h-3.5 text-[#9A7028] shrink-0" aria-hidden="true" />
+                    <span className="tabular-nums font-medium">{user.phone || 'No phone added'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <div className="lg:col-span-8">
+            <ProfileSection className="w-full max-w-none" />
+          </div>
+        </div>
+      )}
 
       {viewAptDetail && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[#231A16]/50 backdrop-blur-[2px] p-4"
           role="dialog"
           aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewAptDetail(null);
+          }}
         >
-          <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-6 shadow-xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 sm:p-6 shadow-xl">
             <div className="flex items-start justify-between pb-4 border-b border-[#E5DDD0]/80">
-              <div>
+              <div className="min-w-0">
                 <h3 className="font-display text-2xl font-semibold text-[#231A16]">
                   Appointment Request
                 </h3>
-                <p className="text-xs font-mono text-[#6E6259]">{viewAptDetail.id}</p>
+                <p className="text-xs font-mono text-[#6E6259] break-all">{viewAptDetail.id}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setViewAptDetail(null)}
                 aria-label="Close modal"
-                className="p-1 text-[#6E6259] hover:text-[#231A16]"
+                className="p-1.5 text-[#6E6259] hover:text-[#231A16] shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="mt-4 space-y-2.5 text-sm">
               <div className="flex justify-between gap-4">
-                <span className="text-[#6E6259]">Customer</span>
-                <span className="font-semibold text-[#231A16] text-right">
+                <span className="text-[#6E6259] shrink-0">Customer</span>
+                <span className="font-semibold text-[#231A16] text-right break-words min-w-0">
                   {viewAptDetail.customer?.name} ({viewAptDetail.customer?.email})
                 </span>
               </div>
@@ -487,8 +566,11 @@ export function AdminDashboardView({
           className="fixed inset-0 z-50 flex items-center justify-center bg-[#231A16]/50 backdrop-blur-[2px] p-4"
           role="dialog"
           aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewUserDetail(null);
+          }}
         >
-          <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-6 shadow-xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 sm:p-6 shadow-xl">
             <div className="flex items-start justify-between pb-4 border-b border-[#E5DDD0]/80">
               <h3 className="font-display text-2xl font-semibold text-[#231A16]">
                 Customer Profile
@@ -497,7 +579,7 @@ export function AdminDashboardView({
                 type="button"
                 onClick={() => setViewUserDetail(null)}
                 aria-label="Close customer details"
-                className="p-1 text-[#6E6259] hover:text-[#231A16]"
+                className="p-1.5 text-[#6E6259] hover:text-[#231A16] shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -506,11 +588,11 @@ export function AdminDashboardView({
               <SalonImage
                 src={viewUserDetail.image}
                 alt={viewUserDetail.name}
-                className="w-14 h-14 rounded-xl object-cover border border-[#B5893A]/40"
+                className="w-14 h-14 rounded-xl object-cover border border-[#B5893A]/40 shrink-0"
               />
-              <div>
-                <p className="text-base font-semibold text-[#231A16]">{viewUserDetail.name}</p>
-                <p className="text-xs text-[#6E6259]">{viewUserDetail.email}</p>
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-[#231A16] truncate">{viewUserDetail.name}</p>
+                <p className="text-xs text-[#6E6259] break-all">{viewUserDetail.email}</p>
               </div>
             </div>
             <div className="mt-4 space-y-2 text-sm">

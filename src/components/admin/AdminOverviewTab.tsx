@@ -20,44 +20,44 @@ export function AdminOverviewTab({
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
           <p className="text-xs font-medium text-[#6E6259]">Total Registered Customers</p>
-          <p className="mt-2 font-display text-3xl font-semibold text-[#231A16] tabular-nums">
+          <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#231A16] tabular-nums">
             {loading ? '—' : stats?.totalCustomers ?? 0}
           </p>
         </div>
-        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
           <p className="text-xs font-medium text-[#6E6259]">Total Active Services</p>
-          <p className="mt-2 font-display text-3xl font-semibold text-[#231A16] tabular-nums">
+          <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#231A16] tabular-nums">
             {loading ? '—' : stats?.totalActiveServices ?? 0}
           </p>
         </div>
-        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
           <p className="text-xs font-medium text-[#6E6259]">Total Appointment Requests</p>
-          <p className="mt-2 font-display text-3xl font-semibold text-[#231A16] tabular-nums">
+          <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#231A16] tabular-nums">
             {loading ? '—' : stats?.totalAppointments ?? 0}
           </p>
         </div>
-        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
           <p className="text-xs font-medium text-[#6E6259]">Pending Appointments</p>
-          <p className="mt-2 font-display text-3xl font-semibold text-[#9A7028] tabular-nums">
+          <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#9A7028] tabular-nums">
             {loading ? '—' : stats?.pendingAppointments ?? 0}
           </p>
         </div>
-        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
           <p className="text-xs font-medium text-[#6E6259]">Confirmed Appointments</p>
-          <p className="mt-2 font-display text-3xl font-semibold text-[#1F6E43] tabular-nums">
+          <p className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-[#1F6E43] tabular-nums">
             {loading ? '—' : stats?.confirmedAppointments ?? 0}
           </p>
         </div>
-        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
+        <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
           <p className="text-xs font-medium text-[#6E6259]">Total Successful Payments</p>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <p className="font-display text-3xl font-semibold text-[#231A16] tabular-nums">
+          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-1.5">
+            <p className="font-display text-2xl sm:text-3xl font-semibold text-[#231A16] tabular-nums">
               {loading ? '—' : stats?.totalSuccessfulPayments ?? 0}
             </p>
-            <span className="text-sm font-semibold text-[#1F6E43] tabular-nums">
+            <span className="text-xs sm:text-sm font-semibold text-[#1F6E43] tabular-nums">
               {loading ? '' : formatCurrency(stats?.totalRevenue ?? 0)}
             </span>
           </div>
@@ -80,7 +80,9 @@ export function AdminOverviewTab({
           <SalonLoader size="sm" label="Loading requests..." className="py-10" />
         ) : pending.length === 0 ? (
           <div className="p-8 text-center text-sm text-[#6E6259]">
-            All appointment requests have been reviewed.
+            {appointments.length === 0
+              ? 'No pending appointment requests yet.'
+              : 'All appointment requests have been reviewed.'}
           </div>
         ) : (
           <div className="divide-y divide-[#E5DDD0]/70">

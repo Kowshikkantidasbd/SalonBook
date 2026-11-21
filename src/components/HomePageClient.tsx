@@ -9,6 +9,7 @@ import {
   prefetchApiData,
   primeApiCache,
 } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { SALON_CATEGORIES, type ServiceRecord } from '@/lib/salonRules';
 import { ServiceCard } from '@/components/ServiceCard';
 import { SalonImage } from '@/components/SalonImage';
@@ -82,6 +83,7 @@ export function HomePageClient({
 }: {
   initialServices: ServiceRecord[] | null;
 }) {
+  const { user } = useAuth();
   const [services, setServices] = useState<ServiceRecord[]>(() => initialServices ?? []);
   const [loading, setLoading] = useState(() => initialServices === null);
   const [error, setError] = useState<string | null>(null);
@@ -177,12 +179,22 @@ export function HomePageClient({
                   Explore Salon Services
                   <ArrowRight className="w-4 h-4 text-[#D4AF6A]" aria-hidden="true" />
                 </Link>
-                <Link
-                  href="/sign-up"
-                  className="inline-flex items-center justify-center px-5 py-3.5 text-sm font-semibold text-[#231A16] bg-[#FFFFFF] border border-[#E5DDD0] hover:border-[#B5893A] rounded-lg transition-colors whitespace-nowrap"
-                >
-                  Join SalonBook
-                </Link>
+                {user ? (
+                  <Link
+                    href={user.role === 'admin' ? '/dashboard/admin' : '/dashboard/customer/appointments'}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3.5 text-sm font-semibold text-[#231A16] bg-[#FFFFFF] border border-[#E5DDD0] hover:border-[#B5893A] rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    <Calendar className="w-4 h-4 text-[#9A7028]" aria-hidden="true" />
+                    <span>{user.role === 'admin' ? 'Admin Dashboard' : 'My Appointments'}</span>
+                  </Link>
+                ) : (
+                  <Link
+                    href="/sign-up"
+                    className="inline-flex items-center justify-center px-5 py-3.5 text-sm font-semibold text-[#231A16] bg-[#FFFFFF] border border-[#E5DDD0] hover:border-[#B5893A] rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    Join SalonBook
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -191,7 +203,7 @@ export function HomePageClient({
                 aria-hidden="true"
                 className="hidden lg:block absolute -inset-3 bg-[#F3EDE2] rounded-2xl border border-[#E5DDD0]/80 -z-10 translate-x-2 translate-y-2"
               />
-              <div className="aspect-[16/10] sm:aspect-[16/9] lg:aspect-auto lg:h-full lg:min-h-[400px] rounded-xl overflow-hidden border border-[#E5DDD0] bg-[#FFFFFF] shadow-sm">
+              <div className="aspect-[16/10] md:aspect-[21/10] lg:aspect-auto lg:h-full lg:min-h-[400px] rounded-xl overflow-hidden border border-[#E5DDD0] bg-[#FFFFFF] shadow-sm">
                 <SalonImage
                   src={HERO_IMAGE}
                   alt="Sunlit SalonBook studio interior with warm travertine stations and oak mirrors"
@@ -200,33 +212,6 @@ export function HomePageClient({
                   className="w-full h-full object-cover"
                 />
               </div>
-            </div>
-          </div>
-
-          <div className="mt-12 pt-8 border-t border-[#E5DDD0] grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A7028]">
-                7 Curated Disciplines
-              </p>
-              <p className="mt-1 text-sm text-[#6E6259]">
-                Hair artistry, botanical skin care, nail craft, and warm stone therapy under one roof.
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A7028]">
-                Concierge-Confirmed Slots
-              </p>
-              <p className="mt-1 text-sm text-[#6E6259]">
-                Every booking request is verified for specialist availability before payment is requested.
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A7028]">
-                Verified Stripe Settlement
-              </p>
-              <p className="mt-1 text-sm text-[#6E6259]">
-                Encrypted online checkout with instant webhook-verified receipt history in your dashboard.
-              </p>
             </div>
           </div>
         </div>
@@ -263,9 +248,9 @@ export function HomePageClient({
             <p className="text-sm text-[#6E6259]">No active services are available right now.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-            {featuredServices.map((service) => (
-              <ServiceCard key={service.id} service={service} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-7">
+            {featuredServices.map((service, idx) => (
+              <ServiceCard key={service.id} service={service} priority={idx < 3} />
             ))}
           </div>
         )}
@@ -287,12 +272,12 @@ export function HomePageClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {categoryCounts.map((cat) => (
               <Link
                 key={cat.name}
                 href={`/services?category=${encodeURIComponent(cat.name)}`}
-                className="group bg-[#FFFFFF] border border-[#E5DDD0] hover:border-[#B5893A] rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between"
+                className="group bg-[#FFFFFF] border border-[#E5DDD0] hover:border-[#B5893A] rounded-xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#F3EDE2]">
@@ -339,20 +324,20 @@ export function HomePageClient({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
           {MASTER_STYLISTS.map((stylist) => (
             <article
               key={stylist.name}
               className="group bg-[#FFFFFF] border border-[#E5DDD0] hover:border-[#B5893A]/60 rounded-xl overflow-hidden flex flex-col transition-all duration-300"
             >
-              <div className="aspect-[4/3] sm:aspect-[3/4] overflow-hidden bg-[#F3EDE2]">
+              <div className="aspect-[4/3] lg:aspect-[3/4] overflow-hidden bg-[#F3EDE2]">
                 <SalonImage
                   src={stylist.image}
                   alt={`${stylist.name}, ${stylist.role}`}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]"
                 />
               </div>
-              <div className="p-6 flex flex-col flex-1">
+              <div className="p-5 lg:p-6 flex flex-col flex-1">
                 <p className="text-xs font-medium text-[#9A7028]">{stylist.experience}</p>
                 <h3 className="mt-1.5 font-display text-2xl font-semibold text-[#231A16]">
                   {stylist.name}

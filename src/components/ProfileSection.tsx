@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { Upload } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { apiFetch, uploadImageFile } from '@/lib/api';
+import { authApi, uploadApi } from '@/lib/api';
 import type { PublicUser } from '@/lib/salonRules';
 import { SalonImage } from './SalonImage';
 
-export function ProfileSection() {
+export function ProfileSection({ className = 'max-w-2xl' }: { className?: string } = {}) {
   const { user, setUserDirect } = useAuth();
   const { showToast } = useToast();
 
@@ -28,10 +28,11 @@ export function ProfileSection() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setUploading(true);
     try {
-      const url = await uploadImageFile(file);
+      const url = await uploadApi.uploadImage(file);
       setImage(url);
       showToast('Profile photo uploaded. Click Save Changes to apply.', 'success');
     } catch (err) {
@@ -51,10 +52,7 @@ export function ProfileSection() {
 
     setSaving(true);
     try {
-      const res = await apiFetch<{ user: PublicUser }>('/api/profile', {
-        method: 'PUT',
-        body: JSON.stringify({ name, phone, image }),
-      });
+      const res = await authApi.updateProfile<PublicUser>({ name, phone, image });
       setUserDirect(res.user);
       showToast('Profile updated successfully.', 'success');
     } catch (err) {
@@ -68,8 +66,10 @@ export function ProfileSection() {
   if (!user) return null;
 
   return (
-    <div className="bg-[#FFFFFF] border border-[#E5DDD0] rounded-xl p-6 sm:p-8 max-w-2xl shadow-[0_2px_12px_-4px_rgba(35,26,22,0.04)]">
-      <h2 className="font-display text-2xl font-semibold text-[#231A16]">My Profile</h2>
+    <div
+      className={`bg-[#FFFFFF] border border-[#E5DDD0] rounded-2xl p-6 sm:p-8 shadow-[0_12px_36px_-24px_rgba(35,26,22,0.14)] ${className}`}
+    >
+      <h2 className="font-display text-2xl font-semibold text-[#231A16]">Personal Information</h2>
       <p className="mt-1 text-sm text-[#6E6259]">
         Update your display name, contact phone number, and profile portrait.
       </p>
@@ -85,16 +85,16 @@ export function ProfileSection() {
             <label htmlFor="profile-image-url" className="block text-xs font-semibold text-[#231A16]">
               Profile Image (Upload File or Enter URL)
             </label>
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
               <input
                 id="profile-image-url"
                 type="text"
                 value={image}
                 onChange={(e) => setImage(e.target.value)}
                 placeholder="https://... or upload an image"
-                className="flex-1 min-w-[200px] px-3 py-2 text-sm bg-[#FBF8F3] border border-[#E5DDD0] rounded-lg text-[#231A16] focus:outline-none focus:border-[#B5893A]"
+                className="w-full sm:flex-1 min-w-0 px-3 py-2 text-sm bg-[#FBF8F3] border border-[#E5DDD0] rounded-lg text-[#231A16] focus:outline-none focus:border-[#B5893A]"
               />
-              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#231A16] bg-[#F3EDE2] hover:bg-[#E5DDD0] border border-[#E5DDD0] rounded-lg transition-colors whitespace-nowrap">
+              <label className="cursor-pointer inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#231A16] bg-[#F3EDE2] hover:bg-[#E5DDD0] border border-[#E5DDD0] rounded-lg transition-colors whitespace-nowrap shrink-0">
                 <Upload className="w-3.5 h-3.5 text-[#9A7028]" aria-hidden="true" />
                 {uploading ? 'Uploading...' : 'Upload Photo'}
                 <input
@@ -170,7 +170,7 @@ export function ProfileSection() {
           <button
             type="submit"
             disabled={saving || uploading}
-            className="px-5 py-2.5 text-sm font-semibold text-[#FBF8F3] bg-[#231A16] hover:bg-[#382B24] border border-[#B5893A]/40 rounded-lg transition-colors disabled:opacity-60"
+            className="w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-[#FBF8F3] bg-[#231A16] hover:bg-[#382B24] border border-[#B5893A]/40 rounded-lg transition-colors disabled:opacity-60"
           >
             {saving ? 'Saving Changes...' : 'Save Changes'}
           </button>

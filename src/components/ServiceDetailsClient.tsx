@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { ArrowLeft, Calendar, CheckCircle2, Clock, Info, LogIn } from 'lucide-react';
 import {
   ApiError,
-  apiFetch,
   apiFetchRevalidate,
+  appointmentsApi,
   getCachedApiData,
   isApiCacheFresh,
   primeApiCache,
@@ -16,6 +16,9 @@ import { useToast } from '@/context/ToastContext';
 import {
   formatCurrency,
   formatDuration,
+  getDefaultBookingDate,
+  getLocalDateString,
+  pickNextAvailableSlot,
   PREDEFINED_TIME_SLOTS,
   type ServiceRecord,
 } from '@/lib/salonRules';
@@ -23,8 +26,7 @@ import { SalonImage } from '@/components/SalonImage';
 import { SalonLoader } from '@/components/SalonLoader';
 
 function getDefaultDate(): string {
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  return tomorrow.toISOString().split('T')[0];
+  return getDefaultBookingDate();
 }
 
 function getCachedServiceById(id: string, detailPath: string): ServiceRecord | null {
@@ -116,33 +118,26 @@ export function ServiceDetailsClient({
 
   useEffect(() => {
     if (!service || !appointmentDate || !showBookingForm || !user) return;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate) || appointmentDate < todayStr) {
       setSlots([]);
       return;
     }
     let active = true;
     setSlotsLoading(true);
-    apiFetch<{ slots: { timeSlot: string; available: boolean }[] }>(
-      `/api/appointments/slots?serviceId=${encodeURIComponent(service.id)}&date=${encodeURIComponent(
-        appointmentDate
-      )}`
-    )
+    appointmentsApi
+      .getSlots(service.id, appointmentDate)
       .then((res) => {
         if (active) {
           setSlots(res.slots);
-          const currentStillAvailable = res.slots.find(
-            (s) => s.timeSlot === timeSlotRef.current && s.available
-          );
-          if (!currentStillAvailable) {
-            const firstAvailable = res.slots.find((s) => s.available);
-            if (firstAvailable) setTimeSlot(firstAvailable.timeSlot);
-          }
+          setTimeSlot(pickNextAvailableSlot(res.slots, timeSlotRef.current));
         }
       })
       .catch(() => {
         if (active) {
-          setSlots(PREDEFINED_TIME_SLOTS.map((s) => ({ timeSlot: s, available: true })));
+          const fallback = PREDEFINED_TIME_SLOTS.map((s) => ({ timeSlot: s, available: true }));
+          setSlots(fallback);
+          setTimeSlot(pickNextAvailableSlot(fallback, timeSlotRef.current));
         }
       })
       .finally(() => {
@@ -156,31 +151,29 @@ export function ServiceDetailsClient({
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!service) return;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate) || appointmentDate < todayStr) {
       showToast('Past dates cannot be booked. Please choose today or a future date.', 'error');
+      return;
+    }
+    if (!timeSlot) {
+      showToast('No available time slots remain for this date. Please choose another day.', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await apiFetch<{ appointment: { id: string } }>('/api/appointments', {
-        method: 'POST',
-        body: JSON.stringify({
-          serviceId: service.id,
-          appointmentDate,
-          timeSlot,
-          message,
-        }),
+      const res = await appointmentsApi.create<{ id: string }>({
+        serviceId: service.id,
+        appointmentDate,
+        timeSlot,
+        message,
       });
       setBookedSuccessId(res.appointment.id);
       showToast('Appointment request submitted! Pending studio confirmation.', 'success');
-      const updatedSlots = await apiFetch<{ slots: { timeSlot: string; available: boolean }[] }>(
-        `/api/appointments/slots?serviceId=${encodeURIComponent(service.id)}&date=${encodeURIComponent(
-          appointmentDate
-        )}`
-      );
+      const updatedSlots = await appointmentsApi.getSlots(service.id, appointmentDate);
       setSlots(updatedSlots.slots);
+      setTimeSlot(pickNextAvailableSlot(updatedSlots.slots, ''));
       setMessage('');
     } catch (err) {
       if (err instanceof ApiError && err.code === 'FORBIDDEN_ROLE') {
@@ -217,7 +210,12 @@ export function ServiceDetailsClient({
     );
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
+  const displaySlots =
+    slots.length > 0
+      ? slots
+      : PREDEFINED_TIME_SLOTS.map((s) => ({ timeSlot: s, available: true }));
+  const allSlotsFull = !slotsLoading && slots.length > 0 && slots.every((s) => !s.available);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
@@ -377,31 +375,35 @@ export function ServiceDetailsClient({
                     <SalonLoader size="xs" inline label="Checking open time slots..." />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(slots.length > 0
-                      ? slots
-                      : PREDEFINED_TIME_SLOTS.map((s) => ({ timeSlot: s, available: true }))
-                    ).map((slotObj) => {
-                      const selected = timeSlot === slotObj.timeSlot;
-                      return (
-                        <button
-                          key={slotObj.timeSlot}
-                          type="button"
-                          disabled={!slotObj.available}
-                          onClick={() => setTimeSlot(slotObj.timeSlot)}
-                          className={`py-2 px-2.5 text-xs font-medium rounded-lg border transition-colors tabular-nums ${
-                            !slotObj.available
-                              ? 'bg-[#F3EDE2] text-[#9C8E80] border-[#E5DDD0] line-through cursor-not-allowed'
-                              : selected
-                              ? 'bg-[#231A16] text-[#FBF8F3] border-[#B5893A]'
-                              : 'bg-[#FBF8F3] text-[#231A16] border-[#E5DDD0] hover:border-[#B5893A]'
-                          }`}
-                        >
-                          {slotObj.timeSlot}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-3 gap-2">
+                      {displaySlots.map((slotObj) => {
+                        const selected = timeSlot === slotObj.timeSlot && slotObj.available;
+                        return (
+                          <button
+                            key={slotObj.timeSlot}
+                            type="button"
+                            disabled={!slotObj.available}
+                            onClick={() => setTimeSlot(slotObj.timeSlot)}
+                            className={`py-2 px-2.5 text-xs font-medium rounded-lg border transition-colors tabular-nums ${
+                              !slotObj.available
+                                ? 'bg-[#F3EDE2] text-[#9C8E80] border-[#E5DDD0] line-through cursor-not-allowed'
+                                : selected
+                                ? 'bg-[#231A16] text-[#FBF8F3] border-[#B5893A]'
+                                : 'bg-[#FBF8F3] text-[#231A16] border-[#E5DDD0] hover:border-[#B5893A]'
+                            }`}
+                          >
+                            {slotObj.timeSlot}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {allSlotsFull && (
+                      <p className="mt-2 text-xs text-[#9F1239] font-medium">
+                        All studio time slots are reserved for this date. Please select another day.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -415,6 +417,7 @@ export function ServiceDetailsClient({
                 <textarea
                   id="appointment-message"
                   rows={3}
+                  maxLength={1000}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Share stylist preferences, sensitivities, or inspiration notes..."
@@ -422,11 +425,11 @@ export function ServiceDetailsClient({
                 />
               </div>
 
-              <div className="flex items-center gap-3 pt-1">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="flex-1 py-2.5 px-4 text-sm font-semibold text-[#FBF8F3] bg-[#231A16] hover:bg-[#3A2C25] border border-[#B5893A]/40 rounded-lg transition-colors disabled:opacity-60"
+                  disabled={submitting || slotsLoading || allSlotsFull || !timeSlot}
+                  className="flex-1 py-2.5 px-4 text-sm font-semibold text-[#FBF8F3] bg-[#231A16] hover:bg-[#3A2C25] border border-[#B5893A]/40 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Submitting Request...' : 'Submit Appointment Request'}
                 </button>
