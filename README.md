@@ -1,84 +1,161 @@
-# SalonBook — Frontend Client
+<div align="center">
 
-A responsive web application for **SalonBook**, a curated salon and beauty atelier reservation platform. Built with **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, and **Lucide Icons**.
+<h1>✂️ SalonBook</h1>
 
----
+<p><b>Explore salon services, book appointments and pay securely online</b></p>
 
-## 🌟 Features
+<p>
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white" alt="Stripe" />
+  <img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
+</p>
 
-- **Editorial Studio Experience**:
-  - Immersive landing page featuring studio philosophy, curated treatments, signature stylists, and client testimonials.
-  - Interactive service catalog with real-time category filtering, full-text search, and multi-parameter sorting.
-- **Appointment Booking & Conflict Validation**:
-  - Dynamic calendar date picker and time slot selector with immediate conflict checking.
-  - Transparent pricing and service duration breakdowns.
-- **Dedicated Dashboards**:
-  - **Customer Dashboard**: Track appointment statuses (`pending`, `confirmed`, `completed`, `cancelled`), cancel pending bookings, review transaction histories, download receipts, and update user profiles.
-  - **Admin Dashboard**: Comprehensive studio management overview, salon service catalog CRUD (add, edit, activate/deactivate, delete), appointment lifecycle controls (confirm, decline, complete, reschedule), and customer account management (block/unblock users).
-- **Secure Stripe Checkout**:
-  - Direct integration with verified Stripe Checkout.
-  - Interactive payment success receipts and payment cancellation screens with automatic cache invalidation and state synchronization.
-- **Authentication**:
-  - Powered by Better Auth & JWT authentication with persistent storage fallback.
-  - One-click Google Social Sign-In popup with seamless handoff.
-  - Role-protected routes (`/dashboard`, `/profile`).
-- **Modern UI / UX**:
-  - Polished editorial aesthetic with custom typography (`Cormorant Garamond`, `Plus Jakarta Sans`, `JetBrains Mono`).
-  - Toast notifications, confirmation modals, loading skeletons, and accessible status badges.
+<p>
+  <a href="https://salonbook-mocha.vercel.app/"><b>🌐 Live Website</b></a> &nbsp;•&nbsp;
+  <a href="https://salonbook-api-three.vercel.app/"><b>⚙️ Live API</b></a> &nbsp;•&nbsp;
+  <a href="https://github.com/Kowshikkantidasbd/SalonBook"><b>💻 Client Repo</b></a> &nbsp;•&nbsp;
+  <a href="https://github.com/Kowshikkantidasbd/SalonBook-api"><b>🗄 Server Repo</b></a>
+</p>
+
+</div>
 
 ---
 
-## 🛠️ Tech Stack
+## 📖 Description
 
-- **Framework**: Next.js 16 (App Router with Turbopack)
-- **UI Library**: React 19
-- **Styling**: Tailwind CSS v4 (`@tailwindcss/postcss`)
-- **Icons**: Lucide React (`lucide-react`)
-- **Animation**: Motion (`motion`)
-- **TypeScript**: Strict type definitions for salon business rules and API contracts.
+SalonBook lets customers explore salon services, request appointments and pay for confirmed ones with Stripe. The salon admin manages services, appointments, customers and payments from a dashboard.
 
----
+This repository is the **client** built with Next.js. The [server](https://github.com/Kowshikkantidasbd/SalonBook-api) is a separate repository.
 
-## 📋 Environment Variables
-
-Create a `.env` or `.env.local` file inside the `frontend/` directory.
-
-| Variable Name | Required | Description |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | Optional | Direct API origin URL used by the browser (leave empty if using Next.js proxy rewrite) |
-| `BACKEND_URL` | **Yes** (in production) | Backend origin URL for Next.js server-side API proxy rewrites (e.g. `https://salonbook-api.vercel.app` or `http://127.0.0.1:5000`) |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Optional | Google OAuth 2.0 Client ID for Google Sign-In popup |
-
-> **Important for Vercel Deployment**: Ensure `BACKEND_URL` points to your production backend URL (e.g., `https://<backend-app>.vercel.app`) rather than `localhost`, so API rewrites route to your live backend.
+> **Quick links:** [Features](#-important-features) · [Tech Stack](#-technology-stack) · [Pages](#-pages-and-roles) · [How It Works](#-how-it-works) · [Run Locally](#-how-to-run-locally) · [Environment](#-required-environment-variables) · [Deployment](#-deployment-vercel)
 
 ---
 
-## 🚀 Getting Started
+## ✨ Important Features
 
-### 1. Installation
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**🌐 Public**
+- Home with banner, featured services, categories and an extra section
+- Browse Services with search, category filter and price sorting
+- Sign In and Sign Up (email/password and Google)
+- Password: 6+ characters, one uppercase, one lowercase
+
+</td>
+<td width="33%" valign="top">
+
+**🧑 Customer**
+- Protected service details page
+- Appointment form (date, time slot, message)
+- My Appointments: view, cancel pending, **Pay Now** for confirmed
+- Payment success and cancel pages
+- Profile management
+
+</td>
+<td width="33%" valign="top">
+
+**🛠 Admin**
+- Overview statistics
+- Manage services with image upload and active/inactive status
+- Confirm or cancel appointments
+- Block or unblock users
+- View transactions
+
+</td>
+</tr>
+</table>
+
+**🎨 General:** role-based protected routes and sidebar, navbar that updates right after login/logout, footer with contact information, address, opening hours and social links, responsive layout, loading states, toast notifications and error pages (no browser `alert()`).
+
+## 🛠 Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js |
+| Language | TypeScript |
+| Auth | Better Auth client |
+| Styling | Tailwind CSS |
+| Payments | Stripe Checkout (status confirmed by the server webhook) |
+| Hosting | Vercel |
+
+## 🧭 Pages and Roles
+
+| Access | Pages |
+|---|---|
+| 🌍 Public | Home, Browse Services, Sign In, Sign Up |
+| 🔒 Signed in | Service Details (`/services/[id]`), Dashboard |
+| 🧑 Customer | Overview, My Appointments, My Profile |
+| 🛠 Admin | Overview, Manage Services, Add/Update Service, Manage Appointments, Manage Users, Transactions, My Profile |
+
+Customers cannot open admin pages and admins cannot open customer pages, even by changing the URL. The server also verifies roles on every protected API.
+
+## 🔄 How It Works
+
+| Step | What happens |
+|:-:|---|
+| 1 | Customer browses services and opens one (sign in required) |
+| 2 | Customer submits an appointment request: status `pending`, payment `unpaid` |
+| 3 | Admin confirms or cancels the request |
+| 4 | Customer clicks **Pay Now** on a confirmed appointment and goes to Stripe Checkout |
+| 5 | Stripe sends a verified webhook to the server, which marks the payment `paid` and saves the transaction |
+| 6 | Customer returns to the Payment Success page |
+
+---
+
+## 📦 Installation
+
 ```bash
-cd frontend
+git clone https://github.com/Kowshikkantidasbd/SalonBook.git
+cd SalonBook
 npm install
 ```
 
-### 2. Run in Development Mode
-```bash
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+## ▶️ How to Run Locally
 
-### 3. Build & Type Check
+Start the [server](https://github.com/Kowshikkantidasbd/SalonBook-api) first, then:
+
 ```bash
-npm run lint     # TypeScript strict compilation check
-npm run build    # Production build
-npm run start    # Start production server
+cp .env.example .env     # then fill in the values
+npm run dev              # http://localhost:3000
 ```
+
+<details>
+<summary><b>Other commands</b></summary>
+
+```bash
+npm run lint
+npm run build
+npm start
+```
+
+</details>
+
+## 🔐 Required Environment Variables
+
+Names only. Never commit `.env` files or real secret values.
+
+| Variable | Purpose |
+|---|---|
+| `BACKEND_URL` | Server base URL without a trailing `/` or `/api`. Local example: `http://127.0.0.1:5000`. All `/api/*` requests are proxied to it |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google OAuth client ID (public by design) |
+
+## 🚀 Deployment (Vercel)
+
+1. Import the repository in Vercel.
+2. Add the environment variables for Production. Set `BACKEND_URL` to `https://salonbook-api-three.vercel.app`.
+3. **Redeploy** after any environment variable change, because rewrites are built at build time.
+4. Reload dashboard routes and check that login persists after refresh.
+
+## 👤 Admin Access
+
+Admin accounts cannot be created through public sign-up. Evaluation credentials are shared separately and are never stored in this repository.
 
 ---
 
-## 🔗 Repository & Live Deployment Links
-
-- **Client Repository**: [GitHub — SalonBook](https://github.com/Kowshikkantidasbd/SalonBook)
-- **Server Repository**: [GitHub — SalonBook API](https://github.com/Kowshikkantidasbd/SalonBook-api)
-- **Live Frontend Application**: `https://<your-frontend-deployment>.vercel.app`
-- **Live Backend API**: `https://<your-backend-deployment>.vercel.app`
+<div align="center">
+  Made with ❤️ for SalonBook
+</div>
