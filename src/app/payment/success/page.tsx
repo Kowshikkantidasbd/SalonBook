@@ -36,6 +36,23 @@ function formatReadableDate(dateStr?: string): string {
   });
 }
 
+function formatPaymentDateTime(dateStr?: string): string {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  if (Number.isNaN(d.getTime())) return '';
+  const dateFormatted = d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const timeFormatted = d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateFormatted} · ${timeFormatted}`;
+}
+
 function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -283,9 +300,22 @@ function PaymentSuccessContent() {
                         <dd className="font-semibold text-[#231A16] text-right">{serviceName}</dd>
                       </div>
 
+                      {/* Live Payment Date & Time */}
+                      <div className="py-3.5 flex items-start justify-between gap-4">
+                        <dt className="text-[#6E6259] shrink-0">Date & Time</dt>
+                        <dd className="font-medium text-[#231A16] text-right tabular-nums inline-flex flex-wrap justify-end items-center gap-x-2 gap-y-0.5 min-w-0">
+                          <span>
+                            {formatPaymentDateTime(
+                              details.transaction?.createdAt || details.appointment?.createdAt
+                            )}
+                          </span>
+                        </dd>
+                      </div>
+
+                      {/* Scheduled Appointment Reservation */}
                       {details.appointment && (
                         <div className="py-3.5 flex items-start justify-between gap-4">
-                          <dt className="text-[#6E6259] shrink-0">Date & Time</dt>
+                          <dt className="text-[#6E6259] shrink-0">Appointment Schedule</dt>
                           <dd className="font-medium text-[#231A16] text-right tabular-nums inline-flex flex-wrap justify-end items-center gap-x-2 gap-y-0.5 min-w-0">
                             <span>{formatReadableDate(details.appointment.appointmentDate)}</span>
                             <span className="text-[#C7B9A5]" aria-hidden="true">
