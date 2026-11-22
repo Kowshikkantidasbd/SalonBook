@@ -272,7 +272,6 @@ export function resolvePostLoginRedirect(
   if (
     role === 'admin' &&
     (redirectTarget.startsWith('/dashboard/customer') ||
-      redirectTarget.startsWith('/checkout') ||
       redirectTarget.startsWith('/payment'))
   ) {
     return defaultPath;

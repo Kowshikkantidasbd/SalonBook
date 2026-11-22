@@ -12,9 +12,10 @@ import {
   setCachedUser,
   setStoredToken,
 } from '@/lib/api';
+import { authClient } from '@/lib/auth-client';
 import type { PublicUser } from '@/lib/salonRules';
 
-const PROTECTED_ROUTE_PREFIXES = ['/dashboard', '/profile', '/checkout', '/payment'];
+const PROTECTED_ROUTE_PREFIXES = ['/dashboard', '/profile', '/payment'];
 
 function isProtectedRoutePath(pathname: string): boolean {
   return PROTECTED_ROUTE_PREFIXES.some(
@@ -148,6 +149,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       setLoggingOut(false);
+      try {
+        await authClient.signIn.email({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+      } catch {
+        // Continue with unified authApi
+      }
       const res = await authApi.login<PublicUser>(email.trim().toLowerCase(), password);
       setStoredToken(res.token);
       updateUserState(res.user);
@@ -160,6 +169,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(
     async (payload: { name: string; email: string; password: string; image?: string }) => {
       setLoggingOut(false);
+      try {
+        await authClient.signUp.email({
+          name: payload.name.trim(),
+          email: payload.email.trim().toLowerCase(),
+          password: payload.password,
+          image: payload.image?.trim() || undefined,
+        });
+      } catch {
+        // Continue with unified authApi
+      }
       const res = await authApi.register<PublicUser>({
         name: payload.name.trim(),
         email: payload.email.trim().toLowerCase(),
@@ -345,6 +364,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     setLoggingOut(true);
+    try {
+      await authClient.signOut().catch(() => {});
+    } catch {
+      // Ignore Better Auth client logout errors
+    }
     try {
       await authApi.logout();
     } catch {

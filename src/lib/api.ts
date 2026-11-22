@@ -600,11 +600,9 @@ export const paymentsApi = {
   getSession: <TResponse = unknown>(sessionId: string) =>
     apiFetch<TResponse>(`/api/payments/session/${encodeURIComponent(sessionId)}`),
 
-  completeTestPayment: (sessionId: string, outcome: 'success' | 'fail') =>
-    apiFetch<{ redirectUrl: string }>('/api/payments/test-complete', {
-      method: 'POST',
-      body: JSON.stringify({ sessionId, outcome }),
-    }),
+  completeTestPayment: async (sessionId: string) => {
+    return { redirectUrl: `/payment/success?session_id=${encodeURIComponent(sessionId)}` };
+  },
 
   getMyTransactions: <TResponse = unknown>() =>
     apiFetchRevalidate<TResponse>('/api/transactions/my'),

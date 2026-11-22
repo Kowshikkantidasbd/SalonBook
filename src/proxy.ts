@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PROTECTED_PREFIXES = ['/dashboard', '/checkout', '/profile'];
+const PROTECTED_PREFIXES = ['/dashboard', '/profile'];
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
@@ -24,5 +24,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/checkout/:path*', '/profile/:path*', '/profile'],
+  matcher: ['/dashboard/:path*', '/profile/:path*', '/profile'],
 };
