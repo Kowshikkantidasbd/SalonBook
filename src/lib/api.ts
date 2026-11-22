@@ -589,7 +589,7 @@ export const appointmentsApi = {
 
 export const paymentsApi = {
   createCheckoutSession: (appointmentId: string) =>
-    apiFetch<{ url: string; sessionId: string; mode: 'stripe' | 'test_simulator' }>(
+    apiFetch<{ url: string; sessionId: string; mode: 'stripe' }>(
       '/api/payments/create-checkout-session',
       {
         method: 'POST',
